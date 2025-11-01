@@ -1,247 +1,429 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OA & OER</title>
-	  <!-- Force HTTPS redirect -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Family Tree — Interactive</title>
+
+  <!-- Force HTTPS -->
   <script>
     if (location.protocol !== 'https:') {
       location.replace(`https:${location.href.substring(location.protocol.length)}`);
     }
   </script>
-	
-  
+
   <script src="https://d3js.org/d3.v7.min.js"></script>
+
   <style>
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: "Segoe UI", Arial, sans-serif;
-      background-color: #f8fafc;
-      overflow: hidden;
+    :root {
+      --blue: #1976d2;
+      --light: #f8fafc;
+      --card: #e3f2fd;
+      --text: #111;
     }
-
+    html,body { height:100%; margin:0; padding:0; font-family: "Segoe UI", Arial, sans-serif; background: var(--light); }
     header {
-      background-color: #2196f3;
-      color: white;
-      text-align: center;
-      padding: 15px 0;
-      font-size: 24px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+      background: var(--blue);
+      color: #fff;
+      padding:12px 18px;
+      font-weight:600;
+      font-size:18px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.12);
       position: relative;
-      z-index: 2;
+      z-index: 5;
     }
-
-    #info-box {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      width: 300px;
-      background: white;
-      border: 1px solid #ccc;
-      border-radius: 10px;
-      padding: 12px 15px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    /* DOWNLOAD tab */
+    #download-tab {
+      position: fixed;
+      top: 18px;
+      left: 18px;
+      background: var(--blue);
+      color: white;
+      padding: 8px 14px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+      font-weight: 600;
+      cursor: pointer;
+      z-index: 20;
+      text-decoration: none;
+    }
+    #container { position: relative; height: calc(100vh - 56px); }
+    svg { width: 100%; height: 100%; cursor: grab; display:block; }
+    .link { fill: none; stroke: #bbb; stroke-width: 2px; }
+    .node rect { fill: var(--card); stroke: var(--blue); stroke-width:2px; rx:10; ry:10; }
+    .node text { font-size: 14px; fill: var(--text); pointer-events: none; }
+    .img-icon {
       font-size: 14px;
-      line-height: 1.5;
-      color: #333;
-      z-index: 3;
+      cursor: pointer;
+      user-select: none;
     }
-
-    svg {
-      width: 100%;
-      height: calc(100vh - 70px);
-      cursor: grab;
+    .img-preview {
+      pointer-events: auto;
+      cursor: pointer;
     }
-
-    .link {
-      fill: none;
-      stroke: #bbb;
-      stroke-width: 2px;
-    }
-
-    .node rect {
-      fill: #e3f2fd;
-      stroke: #2196f3;
-      stroke-width: 2px;
-      rx: 10;
-      ry: 10;
-      filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.2));
-    }
-
-    .node text {
-      font-size: 15px;
-      fill: #111;
+    /* small shadow for previews */
+    .preview-box {
+      box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fff;
+      border: 1px solid rgba(0,0,0,0.06);
     }
   </style>
 </head>
 <body>
   <header>Distortions in Open Access (OA) and impact on Open Educational Resources (OER)</header>
 
-  <div id="info-box">
-    <strong>About this presentation:</strong><br>
-    <li>This presentation has been prepared as part of KEDLE-2025 speech.</li>
-    <li>The model will remain active in public domain for few days.</li>
-   <li>Visitors are requested to contact the author personally for a static graphics of this site.</li> 
+  <!-- Download tab: opens direct download in new tab -->
+  <a id="download-tab" href="#" target="_blank" rel="noopener">DOWNLOAD</a>
+
+  <div id="container">
+    <svg></svg>
   </div>
 
-  <svg></svg>
+<script>
+// ---------- CONFIG ----------
+const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQbYH3fZ0Fkz4Co5QtSCoZzkWku4jurdda6ttNrWKbJXG94odN5X0hSL06CfaHKREYJ7H8aa8PQmWOx/pub?output=csv";
 
-  <script>
-    const csvUrl =
-      "https://docs.google.com/spreadsheets/d/e/2PACX-1vQbYH3fZ0Fkz4Co5QtSCoZzkWku4jurdda6ttNrWKbJXG94odN5X0hSL06CfaHKREYJ7H8aa8PQmWOx/pub?output=csv";
+// The Drive file to be downloaded when the DOWNLOAD tab is clicked
+const downloadDriveShareLink = "https://drive.google.com/file/d/1uOaf9uWl8KKw1KT5l3AbNvvaz7Ckh2lL/view?usp=sharing";
+// ----------------------------
 
-    const svg = d3.select("svg");
-    const g = svg.append("g");
+// Helper: convert Drive share view link -> direct display & download
+function driveFileIdFromLink(link) {
+  // matches /d/FILEID/
+  const m = link.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : null;
+}
+function driveViewUrl(fileId) {
+  return `https://drive.google.com/uc?export=view&id=${fileId}`;
+}
+function driveDownloadUrl(fileId) {
+  return `https://drive.google.com/uc?export=download&id=${fileId}`;
+}
 
-    // Zoom & Pan
-    const zoom = d3.zoom()
-      .scaleExtent([0.3, 2.5])
-      .on("zoom", (event) => g.attr("transform", event.transform));
-    svg.call(zoom);
+// Set DOWNLOAD button href
+const dlId = driveFileIdFromLink(downloadDriveShareLink);
+if (dlId) {
+  document.getElementById("download-tab").href = driveDownloadUrl(dlId);
+} else {
+  // fallback: link directly to provided share URL
+  document.getElementById("download-tab").href = downloadDriveShareLink;
+}
 
-    const treeLayout = d3.tree().nodeSize([70, 250]);
-    const duration = 600;
+// Setup SVG and group
+const svg = d3.select("svg");
+const container = d3.select("#container");
+const g = svg.append("g");
 
-    d3.csv(csvUrl).then((data) => {
-      const rootData = data.find((d) => !d.ParentID);
-      function buildTree(node) {
-        const children = data.filter((d) => d.ParentID === node.ID);
-        if (children.length) node.children = children.map(buildTree);
-        return node;
+// pan & zoom
+const zoom = d3.zoom().scaleExtent([0.3, 3]).on("zoom", (event) => g.attr("transform", event.transform));
+svg.call(zoom);
+
+// tree layout (vertical)
+const tree = d3.tree().nodeSize([70, 220]); // [xSpacing, ySpacing]
+const duration = 450;
+let rootNode;
+let nodeIndex = 0;
+
+// Read CSV and build tree
+d3.csv(csvUrl).then(rows => {
+  // convert list into map keyed by ID
+  const map = {};
+  rows.forEach(r => {
+    const id = (r.ID || "").toString().trim();
+    map[id] = {
+      ID: id,
+      Name: (r.Name || "").toString().trim(),
+      ParentID: (r.ParentID || "").toString().trim(),
+      PhotoURL: (r.PhotoURL || "").toString().trim(),
+      Details: (r.Details || "").toString().trim(),
+      children: []
+    };
+  });
+
+  // find root (first entry with no ParentID)
+  let rootData = null;
+  Object.values(map).forEach(n => {
+    if (n.ParentID && map[n.ParentID]) {
+      map[n.ParentID].children.push(n);
+    } else if (!rootData) {
+      rootData = n;
+    }
+  });
+  if (!rootData) rootData = Object.values(map)[0];
+
+  // make d3.hierarchy
+  const root = d3.hierarchy(rootData, d => d.children && d.children.length ? d.children : null);
+  root.x0 = 0; root.y0 = 0;
+  if (root.children) root.children.forEach(collapse);
+  rootNode = root;
+
+  update(rootNode);
+
+  // initial zoom/pan to center top region
+  const initialScale = 0.8;
+  const initialX = window.innerWidth / 2 - 100;
+  const initialY = 70;
+  svg.call(zoom.transform, d3.zoomIdentity.translate(initialX, initialY).scale(initialScale));
+});
+
+// collapse helper
+function collapse(d) {
+  if (d.children) {
+    d._children = d.children;
+    d._children.forEach(collapse);
+    d.children = null;
+  }
+}
+
+function update(source) {
+  const treeData = tree(rootNode);
+  const nodes = treeData.descendants();
+  const links = treeData.links();
+
+  // vertical spacing
+  nodes.forEach(d => d.y = d.depth * 240);
+
+  // NODES
+  const node = g.selectAll("g.node").data(nodes, d => d.data.ID);
+
+  // Enter
+  const nodeEnter = node.enter().append("g")
+    .attr("class", "node")
+    .attr("transform", d => `translate(${source.x0 || 0},${source.y0 || 0})`)
+    .on("click", (event, d) => {
+      // clicking the main node toggles children (existing behaviour)
+      if (d.children) {
+        d._children = d.children; d.children = null;
+      } else {
+        d.children = d._children; d._children = null;
       }
-
-      const root = d3.hierarchy(buildTree(rootData));
-      root.x0 = 0;
-      root.y0 = 0;
-      root.children?.forEach(collapse);
-
-      update(root);
-
-      svg.call(
-        zoom.transform,
-        d3.zoomIdentity.translate(window.innerWidth / 2 - 100, 100).scale(0.8)
-      );
-
-      function collapse(d) {
-        if (d.children) {
-          d._children = d.children;
-          d._children.forEach(collapse);
-          d.children = null;
-        }
-      }
-
-      function update(source) {
-        const treeData = treeLayout(root);
-        const nodes = treeData.descendants();
-        const links = treeData.links();
-
-        nodes.forEach((d) => (d.y = d.depth * 250));
-
-        // --- NODES ---
-        const node = g.selectAll("g.node").data(nodes, (d) => d.data.ID);
-
-        const nodeEnter = node
-          .enter()
-          .append("g")
-          .attr("class", "node")
-          .attr("transform", (d) => `translate(${source.y0},${source.x0})`)
-          .on("click", (event, d) => {
-            if (d.children) {
-              d._children = d.children;
-              d.children = null;
-            } else {
-              d.children = d._children;
-              d._children = null;
-            }
-            update(d);
-          });
-
-        // Append text first to measure width
-        nodeEnter
-          .append("text")
-          .attr("dy", "0.35em")
-          .attr("x", 0)
-          .attr("text-anchor", "middle")
-          .text((d) => d.data.Name);
-
-        // After rendering, compute text size dynamically
-        nodeEnter.each(function (d) {
-          const textEl = d3.select(this).select("text").node();
-          const bbox = textEl.getBBox();
-          const paddingX = 12;
-          const paddingY = 6;
-          const rectWidth = bbox.width + paddingX * 2;
-          const rectHeight = bbox.height + paddingY * 2;
-
-          // Append rectangle *behind* text
-          d3.select(this)
-            .insert("rect", "text")
-            .attr("x", -rectWidth / 2)
-            .attr("y", -rectHeight / 2)
-            .attr("width", rectWidth)
-            .attr("height", rectHeight)
-            .attr("rx", 10)
-            .attr("ry", 10)
-            .style("fill", "#e3f2fd")
-            .style("stroke", "#2196f3")
-            .style("stroke-width", 2);
-        });
-
-        // Update node positions
-        const nodeUpdate = nodeEnter
-          .merge(node)
-          .transition()
-          .duration(duration)
-          .attr("transform", (d) => `translate(${d.y},${d.x})`);
-
-        // Remove exiting nodes
-        node.exit()
-          .transition()
-          .duration(duration)
-          .attr("transform", (d) => `translate(${source.y},${source.x})`)
-          .remove();
-
-        // --- LINKS ---
-        const link = g.selectAll("path.link").data(links, (d) => d.target.data.ID);
-
-        const linkEnter = link
-          .enter()
-          .insert("path", "g")
-          .attr("class", "link")
-          .attr("d", (d) => {
-            const o = { x: source.x0, y: source.y0 };
-            return diagonal(o, o);
-          });
-
-        linkEnter
-          .merge(link)
-          .transition()
-          .duration(duration)
-          .attr("d", (d) => diagonal(d.source, d.target));
-
-        link.exit().transition().duration(duration).remove();
-
-        // Save old positions
-        nodes.forEach((d) => {
-          d.x0 = d.x;
-          d.y0 = d.y;
-        });
-      }
-
-      function diagonal(s, d) {
-        return `M ${s.y} ${s.x}
-                C ${(s.y + d.y) / 2} ${s.x},
-                  ${(s.y + d.y) / 2} ${d.x},
-                  ${d.y} ${d.x}`;
-      }
+      // hide any open previews inside this subtree to avoid orphan previews
+      hideAllPreviews();
+      update(d);
     });
-  </script>
+
+  // Text (centered)
+  nodeEnter.append("text")
+    .attr("dy", "0.35em")
+    .attr("text-anchor", "middle")
+    .text(d => d.data.Name);
+
+  // After text is rendered, measure and add background rect
+  nodeEnter.each(function(d) {
+    const nodeG = d3.select(this);
+    const textEl = nodeG.select("text").node();
+    const bbox = textEl.getBBox();
+    const padX = 12, padY = 6;
+    const rectW = bbox.width + padX*2;
+    const rectH = bbox.height + padY*2;
+
+    nodeG.insert("rect", "text")
+      .attr("x", -rectW/2)
+      .attr("y", -rectH/2)
+      .attr("width", rectW)
+      .attr("height", rectH)
+      .attr("rx", 10).attr("ry", 10)
+      .style("fill", "#e3f2fd")
+      .style("stroke", "#1976d2")
+      .style("stroke-width", 2);
+
+    // If PhotoURL exists, add a small image icon to the right of the text
+    if (d.data.PhotoURL) {
+      const iconX = rectW/2 + 10;
+      nodeG.append("text")
+        .attr("class", "img-icon")
+        .attr("x", iconX)
+        .attr("dy", "0.35em")
+        .text("🖼️")
+        .on("click", (event, nodeDatum) => {
+          // prevent node click from firing
+          event.stopPropagation();
+          togglePreview(nodeDatum);
+        })
+        .append("title")
+        .text("Open image (click to toggle). Click image to enlarge.");
+    }
+  });
+
+  // Merge & transition positions
+  const nodeUpdate = nodeEnter.merge(node);
+  nodeUpdate.transition().duration(duration).attr("transform", d => `translate(${d.x},${d.y})`);
+  nodeUpdate.select("rect").attr("rx", 10); // ensure rect present
+
+  // Exit
+  const nodeExit = node.exit().transition().duration(duration)
+    .attr("transform", d => `translate(${source.x},${source.y})`).remove();
+
+  nodeExit.select("rect").attr("width", 0).attr("height", 0);
+
+  // LINKS
+  const link = g.selectAll("path.link").data(links, d => d.target.data.ID);
+
+  const linkEnter = link.enter().insert("path", "g")
+    .attr("class", "link")
+    .attr("d", d => {
+      const o = { x: source.x0 || 0, y: source.y0 || 0 };
+      return diagonal(o, o);
+    });
+
+  linkEnter.merge(link).transition().duration(duration).attr("d", d => diagonal(d.source, d.target));
+  link.exit().transition().duration(duration).remove();
+
+  // save positions
+  nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
+}
+
+// diagonal curve (vertical)
+function diagonal(s, d) {
+  return `M ${s.x} ${s.y}
+          C ${s.x} ${(s.y + d.y)/2},
+            ${d.x} ${(s.y + d.y)/2},
+            ${d.x} ${d.y}`;
+}
+
+// ---------- PREVIEW HANDLING ----------
+
+// Remove any open previews
+function hideAllPreviews() {
+  g.selectAll("g.img-preview-group").remove();
+  // also reset _imgOpen markers in the data tree
+  rootNode.each(n => { if (n.data) n.data._imgOpen = false; if (n.data) n.data._imgLarge = false; });
+}
+
+// Toggle preview for a given node datum (d3 hierarchy node)
+function togglePreview(d) {
+  // If that node currently has preview, remove it
+  if (d.data._imgOpen) {
+    hidePreviewForNode(d);
+    return;
+  }
+
+  // Close other previews and open this one
+  hideAllPreviews();
+  showPreviewForNode(d);
+}
+
+function showPreviewForNode(d) {
+  // convert Drive link if needed
+  const rawUrl = d.data.PhotoURL || "";
+  const driveId = driveFileIdFromLink(rawUrl);
+  const imageUrl = driveId ? driveViewUrl(driveId) : rawUrl;
+
+  // compute initial small preview size
+  const smallW = 220;
+  const smallH = 160;
+
+  // Create a group attached to the node to hold the preview box
+  // Position under the node: translate(x, y + offset)
+  const previewGroup = g.append("g").attr("class", "img-preview-group");
+
+  // Convert node (d.x,d.y) to current group coordinates (since g may be zoomed)
+  // We'll append relative to g itself; positions are in g-coordinates already.
+
+  const px = d.x;
+  const py = d.y + 40; // below the node rectangle
+
+  // Append foreignObject to allow HTML inside (image + caption)
+  const fo = previewGroup.append("foreignObject")
+    .attr("x", px - smallW/2)
+    .attr("y", py)
+    .attr("width", smallW)
+    .attr("height", smallH)
+    .attr("class", "preview-fo");
+
+  // Insert HTML content into foreignObject
+  const foDiv = fo.append("xhtml:div")
+    .attr("class", "preview-box")
+    .style("width", smallW + "px")
+    .style("height", smallH + "px")
+    .style("display", "flex")
+    .style("flex-direction", "column")
+    .style("align-items", "center")
+    .style("justify-content", "center")
+    .style("padding", "6px")
+    .style("box-sizing", "border-box");
+
+  // Image element
+  const img = foDiv.append("img")
+    .attr("src", imageUrl)
+    .attr("alt", d.data.Name || "")
+    .attr("class", "img-preview")
+    .style("width", "100%")
+    .style("height", "auto")
+    .style("border-radius", "6px")
+    .style("display", "block")
+    .on("click", (event) => {
+      // toggle large/small
+      event.stopPropagation();
+      toggleLargePreview(d, fo, px, py);
+    });
+
+  // Optional details text (small)
+  if (d.data.Details) {
+    foDiv.append("div")
+      .style("font-size", "12px")
+      .style("padding-top", "6px")
+      .style("text-align", "center")
+      .style("color", "#222")
+      .text(d.data.Details);
+  }
+
+  // mark as open
+  d.data._imgOpen = true;
+  d.data._imgLarge = false;
+}
+
+function hidePreviewForNode(d) {
+  g.selectAll("g.img-preview-group").remove();
+  d.data._imgOpen = false;
+  d.data._imgLarge = false;
+}
+
+// Toggle between small preview and large inline expanded preview (A3)
+function toggleLargePreview(d, fo, px, py) {
+  // If already large, shrink back
+  if (d.data._imgLarge) {
+    // shrink back to small dimensions
+    const smallW = 220, smallH = 160;
+    fo.transition().duration(300).attr("x", px - smallW/2).attr("y", py).attr("width", smallW).attr("height", smallH);
+    // set flag
+    d.data._imgLarge = false;
+    return;
+  }
+
+  // Expand: make width ~80% of svg width and reposition centered under node (or centered overall)
+  const svgRect = svg.node().getBoundingClientRect();
+  const targetW = Math.floor(svgRect.width * 0.8);
+  const targetH = Math.floor(targetW * 0.6);
+  // center horizontally around node.x but keep within svg bounds
+  let newX = px - targetW/2;
+  if (newX < -svgRect.width/2 + 20) newX = -svgRect.width/2 + 20; // ensure not off-left (g coords)
+  // but since our g translation might be different, we'll center to px centered.
+
+  // For simplicity, put expanded preview centered in the visible svg
+  const centerX = (rootNode.x0 || 0);
+  const svgCenter = svgRect.width / 2;
+  // compute x in g-coordinates such that it roughly centers in viewport
+  // We'll set the foreignObject x = px - targetW/2 (this is in g-coordinates)
+  fo.transition().duration(300).attr("x", px - targetW/2).attr("y", py).attr("width", targetW).attr("height", targetH);
+  d.data._imgLarge = true;
+}
+
+// Click anywhere in SVG background to close any open preview
+svg.on("click", () => {
+  hideAllPreviews();
+});
+
+// Ensure clicks on previews don't propagate to SVG background
+// (we already used stopPropagation on img clicks)
+
+// Optionally: close previews on ESC
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape") hideAllPreviews();
+});
+
+</script>
 </body>
-
 </html>
-
-
