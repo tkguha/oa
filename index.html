@@ -1,435 +1,250 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Family Tree — Interactive</title>
-
-  <!-- Force HTTPS -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OA & OER</title>
+	  <!-- Force HTTPS redirect -->
   <script>
     if (location.protocol !== 'https:') {
       location.replace(`https:${location.href.substring(location.protocol.length)}`);
     }
   </script>
-
+	
+  
   <script src="https://d3js.org/d3.v7.min.js"></script>
-
   <style>
-    :root {
-      --blue: #1976d2;
-      --light: #f8fafc;
-      --card: #ffffff;
-      --node-bg: #eaf4ff;
-      --text: #111;
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background-color: #f8fafc;
+      overflow: hidden;
     }
-    html,body { height:100%; margin:0; padding:0; font-family: "Segoe UI", Arial, sans-serif; background: var(--light); }
+
     header {
-      background: var(--blue);
-      color: #fff;
-      padding:12px 18px;
-      font-weight:600;
-      font-size:18px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+      background-color: #2196f3;
+      color: white;
+      text-align: center;
+      padding: 15px 0;
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
       position: relative;
+      z-index: 2;
+    }
+
+    #info-box {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 300px;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      padding: 12px 15px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      font-size: 14px;
+      line-height: 1.5;
+      color: #333;
       z-index: 3;
     }
 
-    /* DOWNLOAD tab: placed below header (not covering it) */
-    #download-tab {
-      position: fixed;
-      top: 68px;              /* below header */
-      left: 18px;
-      background: var(--blue);
-      color: white;
-      padding: 8px 14px;
-      border-radius: 12px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-      font-weight: 600;
-      cursor: pointer;
-      z-index: 20;
-      text-decoration: none;
+    svg {
+      width: 100%;
+      height: calc(100vh - 70px);
+      cursor: grab;
     }
 
-    #container { position: relative; height: calc(100vh - 68px); overflow: hidden; }
-    svg { width: 100%; height: 100%; cursor: grab; display:block; background: transparent; }
-
-    .link { fill: none; stroke: #cfcfcf; stroke-width: 2px; }
+    .link {
+      fill: none;
+      stroke: #bbb;
+      stroke-width: 2px;
+    }
 
     .node rect {
-      fill: var(--node-bg);
-      stroke: var(--blue);
-      stroke-width: 1.6px;
+      fill: #e3f2fd;
+      stroke: #2196f3;
+      stroke-width: 2px;
       rx: 10;
       ry: 10;
+      filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.2));
     }
 
-    .node .name {
-      font-size: 13px;
-      fill: var(--text);
-      pointer-events: none;
-    }
-
-    /* profile thumbnail circle */
-    .profile-circle {
-      stroke: #ddd;
-      stroke-width: 1px;
-      cursor: pointer;
-    }
-
-    /* modal styles */
-    #img-modal {
-      position: fixed;
-      left: 0; top: 0; right: 0; bottom: 0;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 500;
-    }
-    #img-modal .overlay {
-      position: absolute; left: 0; top: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.6);
-    }
-    #img-modal .content {
-      position: relative;
-      z-index: 501;
-      max-width: 90%;
-      max-height: 90%;
-      background: white;
-      border-radius: 8px;
-      padding: 8px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.45);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    #img-modal img {
-      max-width: 100%;
-      max-height: 80vh;
-      border-radius: 6px;
-      display: block;
-    }
-    #img-modal .caption {
-      margin-top: 8px;
-      color: #222;
-      font-size: 13px;
-      text-align: center;
-    }
-    #img-modal .close-btn {
-      position: absolute;
-      right: 8px;
-      top: 8px;
-      background: #fff;
-      border: none;
-      font-size: 18px;
-      width:32px; height:32px;
-      border-radius: 6px;
-      cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    }
-
-    /* responsiveness small tweaks */
-    @media (max-width:700px) {
-      .node .name { font-size: 12px; }
-      #download-tab { top: 62px; left:10px; padding: 6px 10px; }
+    .node text {
+      font-size: 15px;
+      fill: #111;
     }
   </style>
 </head>
 <body>
   <header>Distortions in Open Access (OA) and impact on Open Educational Resources (OER)</header>
 
-  <!-- Download tab: opens direct download in new tab -->
-  <a id="download-tab" href="#" target="_blank" rel="noopener">DOWNLOAD</a>
-
-  <div id="container">
-    <svg></svg>
+  <div id="info-box">
+    <strong>About this presentation:</strong><br>
+    <li>This presentation has been prepared as part of KEDLE-2025 speech.</li>
+	<li>To be delivered at 4PM on 3rd Nov. 2025 (at Gargi Auditorium)</li>
+	<li>Theme<i>Digital Knowledge Creation and Sharing</i></li>
+    <li><a href="https://raw.githubusercontent.com/tkguha/oa/main/OER.jpg" target="_blank"><b>CLICK HERE</b></a>to download image snapshot of this presentation.</li>
+    <li><a href="https://raw.githubusercontent.com/tkguha/oa/main/2.png" target="_blank"><b>Additional Resource</b></a>.</li>
   </div>
 
-  <!-- Modal for image viewing -->
-  <div id="img-modal" aria-hidden="true">
-    <div class="overlay"></div>
-    <div class="content" role="dialog" aria-modal="true">
-      <button class="close-btn" title="Close">✕</button>
-      <img id="modal-image" src="" alt="Preview" />
-      <div class="caption" id="modal-caption"></div>
-    </div>
-  </div>
 
-<script>
-// ---------- CONFIG ----------
-const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQbYH3fZ0Fkz4Co5QtSCoZzkWku4jurdda6ttNrWKbJXG94odN5X0hSL06CfaHKREYJ7H8aa8PQmWOx/pub?output=csv";
-// Drive file to download when "DOWNLOAD" clicked (kept as you requested earlier)
-const downloadDriveShareLink = "https://drive.google.com/file/d/1uOaf9uWl8KKw1KT5l3AbNvvaz7Ckh2lL/view?usp=sharing";
-// Image display width for modal (IMG-L)
-const IMAGE_MODAL_MAX_WIDTH = 900; // used as a soft cap
-// ----------------------------
+  <svg></svg>
 
-// Helpers to convert common hosting links to direct image URLs
-function driveFileIdFromLink(link) {
-  const m = link && link.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  return m ? m[1] : null;
-}
-function driveViewUrl(fileId) {
-  return `https://drive.google.com/uc?export=view&id=${fileId}`;
-}
-function driveDownloadUrl(fileId) {
-  return `https://drive.google.com/uc?export=download&id=${fileId}`;
-}
-function githubRawFromBlob(link) {
-  if (!link) return link;
-  const m = link.match(/^https:\/\/github\.com\/([^\/]+)\/([^\/]+)\/blob\/([^\/]+)\/(.+)$/);
-  if (m) {
-    return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}/${m[4]}`;
-  }
-  // also handle raw.githubusercontent direct links (return unchanged)
-  return link;
-}
+  <script>
+    const csvUrl =
+      "https://docs.google.com/spreadsheets/d/e/2PACX-1vQbYH3fZ0Fkz4Co5QtSCoZzkWku4jurdda6ttNrWKbJXG94odN5X0hSL06CfaHKREYJ7H8aa8PQmWOx/pub?output=csv";
 
-// Set DOWNLOAD button href (prefer direct download)
-const dlId = driveFileIdFromLink(downloadDriveShareLink);
-if (dlId) {
-  document.getElementById("download-tab").href = driveDownloadUrl(dlId);
-} else {
-  document.getElementById("download-tab").href = downloadDriveShareLink;
-}
+    const svg = d3.select("svg");
+    const g = svg.append("g");
 
-// SVG + D3 setup
-const svg = d3.select("svg");
-const container = d3.select("#container");
-const g = svg.append("g").attr("transform", "translate(40,20)"); // small initial margin
+    // Zoom & Pan
+    const zoom = d3.zoom()
+      .scaleExtent([0.3, 2.5])
+      .on("zoom", (event) => g.attr("transform", event.transform));
+    svg.call(zoom);
 
-// zoom & pan
-const zoom = d3.zoom().scaleExtent([0.25, 3]).on("zoom", (event) => g.attr("transform", event.transform));
-svg.call(zoom);
+    const treeLayout = d3.tree().nodeSize([70, 250]);
+    const duration = 600;
 
-// compute size from container
-function getSize() {
-  const rect = container.node().getBoundingClientRect();
-  return { width: Math.max(800, rect.width), height: Math.max(600, rect.height) };
-}
+    d3.csv(csvUrl).then((data) => {
+      const rootData = data.find((d) => !d.ParentID);
+      function buildTree(node) {
+        const children = data.filter((d) => d.ParentID === node.ID);
+        if (children.length) node.children = children.map(buildTree);
+        return node;
+      }
 
-// horizontal tree: left->right
-const nodeVSpacing = 100; // vertical spacing between siblings
-const nodeHSpacing = 220; // horizontal spacing between generations
+      const root = d3.hierarchy(buildTree(rootData));
+      root.x0 = 0;
+      root.y0 = 0;
+      root.children?.forEach(collapse);
 
-let tree = d3.tree().nodeSize([nodeVSpacing, nodeHSpacing]);
+      update(root);
 
-let rootNode;
+      svg.call(
+        zoom.transform,
+        d3.zoomIdentity.translate(window.innerWidth / 2 - 100, 100).scale(0.8)
+      );
 
-// Modal elements
-const modal = document.getElementById("img-modal");
-const modalImage = document.getElementById("modal-image");
-const modalCaption = document.getElementById("modal-caption");
-const modalOverlay = modal.querySelector(".overlay");
-const modalClose = modal.querySelector(".close-btn");
+      function collapse(d) {
+        if (d.children) {
+          d._children = d.children;
+          d._children.forEach(collapse);
+          d.children = null;
+        }
+      }
 
-modalClose.addEventListener("click", hideModal);
-modalOverlay.addEventListener("click", hideModal);
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideModal(); });
+      function update(source) {
+        const treeData = treeLayout(root);
+        const nodes = treeData.descendants();
+        const links = treeData.links();
 
-function showModal(src, caption) {
-  modalImage.src = src;
-  modalImage.style.maxWidth = IMAGE_MODAL_MAX_WIDTH + "px";
-  modalCaption.textContent = caption || "";
-  modal.style.display = "flex";
-  modal.setAttribute("aria-hidden", "false");
-}
-function hideModal() {
-  modal.style.display = "none";
-  modalImage.src = "";
-  modal.setAttribute("aria-hidden", "true");
-}
+        nodes.forEach((d) => (d.y = d.depth * 250));
 
-// build tree from CSV
-d3.csv(csvUrl).then(rows => {
-  // map rows by ID
-  const map = {};
-  rows.forEach(r => {
-    const id = (r.ID || "").toString().trim();
-    map[id] = {
-      ID: id,
-      Name: (r.Name || "").toString().trim(),
-      ParentID: (r.ParentID || "").toString().trim(),
-      PhotoURL: (r.PhotoURL || "").toString().trim(),
-      Details: (r.Details || "").toString().trim(),
-      children: []
-    };
-  });
+        // --- NODES ---
+        const node = g.selectAll("g.node").data(nodes, (d) => d.data.ID);
 
-  // build parent-child relations
-  let rootData = null;
-  Object.values(map).forEach(n => {
-    if (n.ParentID && map[n.ParentID]) {
-      map[n.ParentID].children.push(n);
-    } else if (!rootData) {
-      rootData = n;
-    }
-  });
-  if (!rootData) rootData = Object.values(map)[0];
+        const nodeEnter = node
+          .enter()
+          .append("g")
+          .attr("class", "node")
+          .attr("transform", (d) => `translate(${source.y0},${source.x0})`)
+          .on("click", (event, d) => {
+            if (d.children) {
+              d._children = d.children;
+              d.children = null;
+            } else {
+              d.children = d._children;
+              d._children = null;
+            }
+            update(d);
+          });
 
-  rootNode = d3.hierarchy(rootData, d => d.children.length ? d.children : null);
-  // initial collapse
-  if (rootNode.children) rootNode.children.forEach(collapse);
-
-  // initial layout
-  update(rootNode);
-
-  // initial pan/zoom
-  const size = getSize();
-  const initialScale = 0.9;
-  const initialTranslateX = 40;
-  const initialTranslateY = 20;
-  svg.call(zoom.transform, d3.zoomIdentity.translate(initialTranslateX, initialTranslateY).scale(initialScale));
-});
-
-// collapse helper
-function collapse(d) {
-  if (d.children) {
-    d._children = d.children;
-    d._children.forEach(collapse);
-    d.children = null;
-  }
-}
-
-function update(source) {
-  const size = getSize();
-  tree = d3.tree().size([size.height, size.width - 160]); // height, width for left->right tree
-
-  const treeData = tree(rootNode);
-  const nodes = treeData.descendants();
-  const links = treeData.links();
-
-  // Links
-  const linkGenerator = d3.linkHorizontal().x(d => d.y).y(d => d.x);
-
-  const link = g.selectAll("path.link").data(links, d => d.target.data.ID);
-  const linkEnter = link.enter().insert("path", "g").attr("class", "link")
-    .attr("d", d => linkGenerator({ source: { x: source.x0 || 0, y: source.y0 || 0 }, target: { x: source.x0 || 0, y: source.y0 || 0 } }));
-  linkEnter.merge(link).transition().duration(400).attr("d", d => linkGenerator(d));
-  link.exit().transition().duration(300).remove();
-
-  // Nodes
-  const node = g.selectAll("g.node").data(nodes, d => d.data.ID);
-
-  // Enter
-  const nodeEnter = node.enter().append("g")
-    .attr("class", "node")
-    .attr("transform", d => `translate(${source.y0 || 0},${source.x0 || 0})`)
-    .on("click", (event, d) => {
-      // toggle children on clicking the rectangle/text (but not profile image)
-      if (d.children) { d._children = d.children; d.children = null; }
-      else { d.children = d._children; d._children = null; }
-      hideAnyModal();
-      update(d);
-    });
-
-  // append rect/text/profile group
-  nodeEnter.each(function(d) {
-    const gNode = d3.select(this);
-
-    // Append text first to measure
-    const text = gNode.append("text")
-      .attr("class", "name")
-      .attr("dy", "0.35em")
-      .attr("x", 0)
-      .attr("text-anchor", "start")
-      .text(d.data.Name);
-
-    // measure
-    const bbox = text.node().getBBox();
-    const padX = 10, padY = 6;
-    // space for profile circle if exists
-    const hasPhoto = Boolean(d.data.PhotoURL && d.data.PhotoURL.trim());
-    const profileSpace = hasPhoto ? 44 : 0; // leave room on left
-    const rectWidth = bbox.width + padX*2 + profileSpace;
-    const rectHeight = bbox.height + padY*2;
-
-    // reposition text to account for profile space (if photo exists) and center vertically
-    text.attr("x", profileSpace/2 + padX); // leave room for profile on the left
-
-    // insert rect behind
-    gNode.insert("rect", "text")
-      .attr("x", -profileSpace/2 - rectWidth/2 + profileSpace/2)
-      .attr("y", -rectHeight/2)
-      .attr("width", rectWidth)
-      .attr("height", rectHeight)
-      .attr("rx", 10).attr("ry", 10)
-      .style("fill", "var(--node-bg)")
-      .style("stroke", "var(--blue)")
-      .style("stroke-width", 1.6);
-
-    // if photo exists, create a <defs> pattern and a circle using it
-    if (hasPhoto) {
-      // compute image url: support github blob -> raw, drive -> uc
-      let imgUrl = d.data.PhotoURL.trim();
-      imgUrl = githubRawFromBlob(imgUrl);
-      const driveId = driveFileIdFromLink(imgUrl);
-      if (driveId) imgUrl = driveViewUrl(driveId);
-
-      const pattId = "patt-" + CSS.escape(d.data.ID);
-      // create or replace pattern in defs
-      let defs = g.select("defs");
-      if (defs.empty()) defs = g.append("defs");
-      // remove existing same pattern id if any
-      defs.select("#" + pattId).remove();
-      defs.append("pattern")
-        .attr("id", pattId)
-        .attr("patternUnits", "objectBoundingBox")
-        .attr("width", 1)
-        .attr("height", 1)
-        .append("image")
-          .attr("href", imgUrl)
-          .attr("preserveAspectRatio", "xMidYMid slice")
-          .attr("width", 36)
-          .attr("height", 36)
+        // Append text first to measure width
+        nodeEnter
+          .append("text")
+          .attr("dy", "0.35em")
           .attr("x", 0)
-          .attr("y", 0);
+          .attr("text-anchor", "middle")
+          .text((d) => d.data.Name);
 
-      // append circle (profile) - clickable to open modal
-      const circleX = -rectWidth/2 + 18; // left side, inside rect
-      const circleY = 0;
-      const circle = gNode.append("circle")
-        .attr("class", "profile-circle")
-        .attr("cx", circleX)
-        .attr("cy", circleY)
-        .attr("r", 18)
-        .style("fill", `url(#${pattId})`)
-        .on("click", (event) => {
-          event.stopPropagation();
-          // open modal with larger image
-          // Convert URL again (in case)
-          let full = d.data.PhotoURL.trim();
-          full = githubRawFromBlob(full);
-          const did = driveFileIdFromLink(full);
-          if (did) full = driveViewUrl(did);
-          showModal(full, d.data.Details || d.data.Name || "");
-        })
-        .append("title")
-        .text("Open image (click)");
-    }
+        // After rendering, compute text size dynamically
+        nodeEnter.each(function (d) {
+          const textEl = d3.select(this).select("text").node();
+          const bbox = textEl.getBBox();
+          const paddingX = 12;
+          const paddingY = 6;
+          const rectWidth = bbox.width + paddingX * 2;
+          const rectHeight = bbox.height + paddingY * 2;
 
-    // ensure accessibility title for node name
-    gNode.node().setAttribute("role", "button");
-    gNode.node().setAttribute("aria-label", d.data.Name || "");
-  });
+          // Append rectangle *behind* text
+          d3.select(this)
+            .insert("rect", "text")
+            .attr("x", -rectWidth / 2)
+            .attr("y", -rectHeight / 2)
+            .attr("width", rectWidth)
+            .attr("height", rectHeight)
+            .attr("rx", 10)
+            .attr("ry", 10)
+            .style("fill", "#e3f2fd")
+            .style("stroke", "#2196f3")
+            .style("stroke-width", 2);
+        });
 
-  // UPDATE + TRANSITION positioning
-  const nodeUpdate = nodeEnter.merge(node);
-  nodeUpdate.transition().duration(400).attr("transform", d => `translate(${d.y},${d.x})`);
+        // Update node positions
+        const nodeUpdate = nodeEnter
+          .merge(node)
+          .transition()
+          .duration(duration)
+          .attr("transform", (d) => `translate(${d.y},${d.x})`);
 
-  // remove exiting nodes
-  const nodeExit = node.exit().transition().duration(300).attr("transform", d => `translate(${source.y || 0},${source.x || 0})`).remove();
+        // Remove exiting nodes
+        node.exit()
+          .transition()
+          .duration(duration)
+          .attr("transform", (d) => `translate(${source.y},${source.x})`)
+          .remove();
 
-  // store old positions
-  nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
-}
+        // --- LINKS ---
+        const link = g.selectAll("path.link").data(links, (d) => d.target.data.ID);
 
-// helper hide modal
-function hideAnyModal() { hideModal(); }
+        const linkEnter = link
+          .enter()
+          .insert("path", "g")
+          .attr("class", "link")
+          .attr("d", (d) => {
+            const o = { x: source.x0, y: source.y0 };
+            return diagonal(o, o);
+          });
 
-// ensure clicking background hides modal
-svg.on("click", () => { /* allow nodes to handle collapse; background click handled by modal overlay */ });
+        linkEnter
+          .merge(link)
+          .transition()
+          .duration(duration)
+          .attr("d", (d) => diagonal(d.source, d.target));
 
-// end of script
-</script>
+        link.exit().transition().duration(duration).remove();
+
+        // Save old positions
+        nodes.forEach((d) => {
+          d.x0 = d.x;
+          d.y0 = d.y;
+        });
+      }
+
+      function diagonal(s, d) {
+        return `M ${s.y} ${s.x}
+                C ${(s.y + d.y) / 2} ${s.x},
+                  ${(s.y + d.y) / 2} ${d.x},
+                  ${d.y} ${d.x}`;
+      }
+    });
+  </script>
 </body>
+
 </html>
+
+
