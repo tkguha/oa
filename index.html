@@ -18,7 +18,8 @@
     :root {
       --blue: #1976d2;
       --light: #f8fafc;
-      --card: #e3f2fd;
+      --card: #ffffff;
+      --node-bg: #eaf4ff;
       --text: #111;
     }
     html,body { height:100%; margin:0; padding:0; font-family: "Segoe UI", Arial, sans-serif; background: var(--light); }
@@ -49,34 +50,87 @@
       text-decoration: none;
     }
 
-    #container { position: relative; height: calc(100vh - 68px); }
-    svg { width: 100%; height: 100%; cursor: grab; display:block; }
-    .link { fill: none; stroke: #bbb; stroke-width: 2px; }
-    .node rect { fill: var(--card); stroke: var(--blue); stroke-width:2px; rx:10; ry:10; }
-    .node text { font-size: 14px; fill: var(--text); pointer-events: none; }
-    .img-icon {
-      font-size: 14px;
-      cursor: pointer;
-      user-select: none;
+    #container { position: relative; height: calc(100vh - 68px); overflow: hidden; }
+    svg { width: 100%; height: 100%; cursor: grab; display:block; background: transparent; }
+
+    .link { fill: none; stroke: #cfcfcf; stroke-width: 2px; }
+
+    .node rect {
+      fill: var(--node-bg);
+      stroke: var(--blue);
+      stroke-width: 1.6px;
+      rx: 10;
+      ry: 10;
     }
-    .img-preview {
-      pointer-events: auto;
-      cursor: pointer;
-      display:block;
-      max-width:100%;
-      height:auto;
-      border-radius:6px;
+
+    .node .name {
+      font-size: 13px;
+      fill: var(--text);
+      pointer-events: none;
     }
-    .preview-box {
-      box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+
+    /* profile thumbnail circle */
+    .profile-circle {
+      stroke: #ddd;
+      stroke-width: 1px;
+      cursor: pointer;
+    }
+
+    /* modal styles */
+    #img-modal {
+      position: fixed;
+      left: 0; top: 0; right: 0; bottom: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+    }
+    #img-modal .overlay {
+      position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6);
+    }
+    #img-modal .content {
+      position: relative;
+      z-index: 501;
+      max-width: 90%;
+      max-height: 90%;
+      background: white;
+      border-radius: 8px;
+      padding: 8px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.45);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    #img-modal img {
+      max-width: 100%;
+      max-height: 80vh;
       border-radius: 6px;
-      overflow: hidden;
-      background: #fff;
-      border: 1px solid rgba(0,0,0,0.06);
+      display: block;
     }
-    /* small mobile tweaks */
+    #img-modal .caption {
+      margin-top: 8px;
+      color: #222;
+      font-size: 13px;
+      text-align: center;
+    }
+    #img-modal .close-btn {
+      position: absolute;
+      right: 8px;
+      top: 8px;
+      background: #fff;
+      border: none;
+      font-size: 18px;
+      width:32px; height:32px;
+      border-radius: 6px;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    /* responsiveness small tweaks */
     @media (max-width:700px) {
-      .node text { font-size: 12px; }
+      .node .name { font-size: 12px; }
+      #download-tab { top: 62px; left:10px; padding: 6px 10px; }
     }
   </style>
 </head>
@@ -90,16 +144,26 @@
     <svg></svg>
   </div>
 
+  <!-- Modal for image viewing -->
+  <div id="img-modal" aria-hidden="true">
+    <div class="overlay"></div>
+    <div class="content" role="dialog" aria-modal="true">
+      <button class="close-btn" title="Close">✕</button>
+      <img id="modal-image" src="" alt="Preview" />
+      <div class="caption" id="modal-caption"></div>
+    </div>
+  </div>
+
 <script>
 // ---------- CONFIG ----------
 const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQbYH3fZ0Fkz4Co5QtSCoZzkWku4jurdda6ttNrWKbJXG94odN5X0hSL06CfaHKREYJ7H8aa8PQmWOx/pub?output=csv";
 // Drive file to download when "DOWNLOAD" clicked (kept as you requested earlier)
 const downloadDriveShareLink = "https://drive.google.com/file/d/1uOaf9uWl8KKw1KT5l3AbNvvaz7Ckh2lL/view?usp=sharing";
-// Image display size selection (IMG-L => 600px)
-const IMAGE_WIDTH = 600;
+// Image display width for modal (IMG-L)
+const IMAGE_MODAL_MAX_WIDTH = 900; // used as a soft cap
 // ----------------------------
 
-// Helpers: convert Drive share -> view/download, convert GitHub blob -> raw
+// Helpers to convert common hosting links to direct image URLs
 function driveFileIdFromLink(link) {
   const m = link && link.match(/\/d\/([a-zA-Z0-9_-]+)/);
   return m ? m[1] : null;
@@ -111,12 +175,12 @@ function driveDownloadUrl(fileId) {
   return `https://drive.google.com/uc?export=download&id=${fileId}`;
 }
 function githubRawFromBlob(link) {
-  // convert https://github.com/user/repo/blob/branch/path -> https://raw.githubusercontent.com/user/repo/branch/path
   if (!link) return link;
   const m = link.match(/^https:\/\/github\.com\/([^\/]+)\/([^\/]+)\/blob\/([^\/]+)\/(.+)$/);
   if (m) {
     return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}/${m[4]}`;
   }
+  // also handle raw.githubusercontent direct links (return unchanged)
   return link;
 }
 
@@ -128,24 +192,54 @@ if (dlId) {
   document.getElementById("download-tab").href = downloadDriveShareLink;
 }
 
-// Setup SVG and group
+// SVG + D3 setup
 const svg = d3.select("svg");
 const container = d3.select("#container");
-const g = svg.append("g");
+const g = svg.append("g").attr("transform", "translate(40,20)"); // small initial margin
 
-// pan & zoom
-const zoom = d3.zoom().scaleExtent([0.3, 3]).on("zoom", (event) => g.attr("transform", event.transform));
+// zoom & pan
+const zoom = d3.zoom().scaleExtent([0.25, 3]).on("zoom", (event) => g.attr("transform", event.transform));
 svg.call(zoom);
 
-// Horizontal tree layout (left -> right)
-const tree = d3.tree().nodeSize([100, 220]); // [vertical spacing, horizontal spacing]
-const duration = 450;
+// compute size from container
+function getSize() {
+  const rect = container.node().getBoundingClientRect();
+  return { width: Math.max(800, rect.width), height: Math.max(600, rect.height) };
+}
+
+// horizontal tree: left->right
+const nodeVSpacing = 100; // vertical spacing between siblings
+const nodeHSpacing = 220; // horizontal spacing between generations
+
+let tree = d3.tree().nodeSize([nodeVSpacing, nodeHSpacing]);
+
 let rootNode;
-let nodeIndex = 0;
 
-// track open preview (only one at a time)
-let openPreviewId = null;
+// Modal elements
+const modal = document.getElementById("img-modal");
+const modalImage = document.getElementById("modal-image");
+const modalCaption = document.getElementById("modal-caption");
+const modalOverlay = modal.querySelector(".overlay");
+const modalClose = modal.querySelector(".close-btn");
 
+modalClose.addEventListener("click", hideModal);
+modalOverlay.addEventListener("click", hideModal);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideModal(); });
+
+function showModal(src, caption) {
+  modalImage.src = src;
+  modalImage.style.maxWidth = IMAGE_MODAL_MAX_WIDTH + "px";
+  modalCaption.textContent = caption || "";
+  modal.style.display = "flex";
+  modal.setAttribute("aria-hidden", "false");
+}
+function hideModal() {
+  modal.style.display = "none";
+  modalImage.src = "";
+  modal.setAttribute("aria-hidden", "true");
+}
+
+// build tree from CSV
 d3.csv(csvUrl).then(rows => {
   // map rows by ID
   const map = {};
@@ -161,7 +255,7 @@ d3.csv(csvUrl).then(rows => {
     };
   });
 
-  // build tree relationships
+  // build parent-child relations
   let rootData = null;
   Object.values(map).forEach(n => {
     if (n.ParentID && map[n.ParentID]) {
@@ -172,19 +266,19 @@ d3.csv(csvUrl).then(rows => {
   });
   if (!rootData) rootData = Object.values(map)[0];
 
-  // make d3.hierarchy
-  const root = d3.hierarchy(rootData, d => d.children && d.children.length ? d.children : null);
-  root.x0 = 0; root.y0 = 0;
-  if (root.children) root.children.forEach(collapse);
-  rootNode = root;
+  rootNode = d3.hierarchy(rootData, d => d.children.length ? d.children : null);
+  // initial collapse
+  if (rootNode.children) rootNode.children.forEach(collapse);
 
+  // initial layout
   update(rootNode);
 
-  // initial zoom/pan: center top-left-ish area
-  const initialScale = 0.8;
-  const initialX = 80;
-  const initialY = 40;
-  svg.call(zoom.transform, d3.zoomIdentity.translate(initialX, initialY).scale(initialScale));
+  // initial pan/zoom
+  const size = getSize();
+  const initialScale = 0.9;
+  const initialTranslateX = 40;
+  const initialTranslateY = 20;
+  svg.call(zoom.transform, d3.zoomIdentity.translate(initialTranslateX, initialTranslateY).scale(initialScale));
 });
 
 // collapse helper
@@ -197,216 +291,145 @@ function collapse(d) {
 }
 
 function update(source) {
+  const size = getSize();
+  tree = d3.tree().size([size.height, size.width - 160]); // height, width for left->right tree
+
   const treeData = tree(rootNode);
   const nodes = treeData.descendants();
   const links = treeData.links();
 
-  // set positions for horizontal layout: x = depth spacing? for d3.tree for left->right we use x,y swapped
-  // keep the default: nodes have x (vertical), y (horizontal). We want left->right so treat y as horizontal.
-  nodes.forEach(d => d.y = d.depth * 220);
+  // Links
+  const linkGenerator = d3.linkHorizontal().x(d => d.y).y(d => d.x);
 
-  // NODES
+  const link = g.selectAll("path.link").data(links, d => d.target.data.ID);
+  const linkEnter = link.enter().insert("path", "g").attr("class", "link")
+    .attr("d", d => linkGenerator({ source: { x: source.x0 || 0, y: source.y0 || 0 }, target: { x: source.x0 || 0, y: source.y0 || 0 } }));
+  linkEnter.merge(link).transition().duration(400).attr("d", d => linkGenerator(d));
+  link.exit().transition().duration(300).remove();
+
+  // Nodes
   const node = g.selectAll("g.node").data(nodes, d => d.data.ID);
 
-  // ENTER
+  // Enter
   const nodeEnter = node.enter().append("g")
     .attr("class", "node")
-    .attr("transform", d => `translate(${source.x0 || 0},${source.y0 || 0})`)
+    .attr("transform", d => `translate(${source.y0 || 0},${source.x0 || 0})`)
     .on("click", (event, d) => {
-      // clicking node toggles children
+      // toggle children on clicking the rectangle/text (but not profile image)
       if (d.children) { d._children = d.children; d.children = null; }
       else { d.children = d._children; d._children = null; }
-      // hide previews to avoid orphaned boxes
-      hidePreview();
+      hideAnyModal();
       update(d);
     });
 
-  // TEXT
-  nodeEnter.append("text")
-    .attr("dy", "0.35em")
-    .attr("text-anchor", "middle")
-    .text(d => d.data.Name);
-
-  // After rendering text, measure bbox and insert rect
+  // append rect/text/profile group
   nodeEnter.each(function(d) {
-    const thisG = d3.select(this);
-    const textEl = thisG.select("text").node();
-    const bbox = textEl.getBBox();
-    const padX = 12, padY = 6;
-    const rectW = bbox.width + padX*2;
-    const rectH = bbox.height + padY*2;
+    const gNode = d3.select(this);
 
-    thisG.insert("rect", "text")
-      .attr("x", -rectW/2)
-      .attr("y", -rectH/2)
-      .attr("width", rectW)
-      .attr("height", rectH)
+    // Append text first to measure
+    const text = gNode.append("text")
+      .attr("class", "name")
+      .attr("dy", "0.35em")
+      .attr("x", 0)
+      .attr("text-anchor", "start")
+      .text(d.data.Name);
+
+    // measure
+    const bbox = text.node().getBBox();
+    const padX = 10, padY = 6;
+    // space for profile circle if exists
+    const hasPhoto = Boolean(d.data.PhotoURL && d.data.PhotoURL.trim());
+    const profileSpace = hasPhoto ? 44 : 0; // leave room on left
+    const rectWidth = bbox.width + padX*2 + profileSpace;
+    const rectHeight = bbox.height + padY*2;
+
+    // reposition text to account for profile space (if photo exists) and center vertically
+    text.attr("x", profileSpace/2 + padX); // leave room for profile on the left
+
+    // insert rect behind
+    gNode.insert("rect", "text")
+      .attr("x", -profileSpace/2 - rectWidth/2 + profileSpace/2)
+      .attr("y", -rectHeight/2)
+      .attr("width", rectWidth)
+      .attr("height", rectHeight)
       .attr("rx", 10).attr("ry", 10)
-      .style("fill", "#e3f2fd")
-      .style("stroke", "#1976d2")
-      .style("stroke-width", 2);
+      .style("fill", "var(--node-bg)")
+      .style("stroke", "var(--blue)")
+      .style("stroke-width", 1.6);
 
-    // If a PhotoURL exists, add a small camera icon to the right of the rect
-    if (d.data.PhotoURL) {
-      const iconX = rectW/2 + 12;
-      thisG.append("text")
-        .attr("class", "img-icon")
-        .attr("x", iconX)
-        .attr("dy", "0.35em")
-        .text("📷")
-        .on("click", (event, nodeDatum) => {
-          // don't trigger node click
+    // if photo exists, create a <defs> pattern and a circle using it
+    if (hasPhoto) {
+      // compute image url: support github blob -> raw, drive -> uc
+      let imgUrl = d.data.PhotoURL.trim();
+      imgUrl = githubRawFromBlob(imgUrl);
+      const driveId = driveFileIdFromLink(imgUrl);
+      if (driveId) imgUrl = driveViewUrl(driveId);
+
+      const pattId = "patt-" + CSS.escape(d.data.ID);
+      // create or replace pattern in defs
+      let defs = g.select("defs");
+      if (defs.empty()) defs = g.append("defs");
+      // remove existing same pattern id if any
+      defs.select("#" + pattId).remove();
+      defs.append("pattern")
+        .attr("id", pattId)
+        .attr("patternUnits", "objectBoundingBox")
+        .attr("width", 1)
+        .attr("height", 1)
+        .append("image")
+          .attr("href", imgUrl)
+          .attr("preserveAspectRatio", "xMidYMid slice")
+          .attr("width", 36)
+          .attr("height", 36)
+          .attr("x", 0)
+          .attr("y", 0);
+
+      // append circle (profile) - clickable to open modal
+      const circleX = -rectWidth/2 + 18; // left side, inside rect
+      const circleY = 0;
+      const circle = gNode.append("circle")
+        .attr("class", "profile-circle")
+        .attr("cx", circleX)
+        .attr("cy", circleY)
+        .attr("r", 18)
+        .style("fill", `url(#${pattId})`)
+        .on("click", (event) => {
           event.stopPropagation();
-          togglePreview(nodeDatum);
+          // open modal with larger image
+          // Convert URL again (in case)
+          let full = d.data.PhotoURL.trim();
+          full = githubRawFromBlob(full);
+          const did = driveFileIdFromLink(full);
+          if (did) full = driveViewUrl(did);
+          showModal(full, d.data.Details || d.data.Name || "");
         })
         .append("title")
-        .text("Open image (click to toggle). Click image to collapse.");
+        .text("Open image (click)");
     }
+
+    // ensure accessibility title for node name
+    gNode.node().setAttribute("role", "button");
+    gNode.node().setAttribute("aria-label", d.data.Name || "");
   });
 
-  // UPDATE (position)
+  // UPDATE + TRANSITION positioning
   const nodeUpdate = nodeEnter.merge(node);
-  nodeUpdate.transition().duration(duration).attr("transform", d => `translate(${d.x},${d.y})`);
+  nodeUpdate.transition().duration(400).attr("transform", d => `translate(${d.y},${d.x})`);
 
-  // EXIT
-  const nodeExit = node.exit().transition().duration(duration)
-    .attr("transform", d => `translate(${source.x},${source.y})`).remove();
+  // remove exiting nodes
+  const nodeExit = node.exit().transition().duration(300).attr("transform", d => `translate(${source.y || 0},${source.x || 0})`).remove();
 
-  // LINKS
-  const link = g.selectAll("path.link").data(links, d => d.target.data.ID);
-
-  const linkEnter = link.enter().insert("path", "g")
-    .attr("class", "link")
-    .attr("d", d => {
-      const o = { x: source.x0 || 0, y: source.y0 || 0 };
-      return horizontalDiagonal(o, o);
-    });
-
-  linkEnter.merge(link).transition().duration(duration).attr("d", d => horizontalDiagonal(d.source, d.target));
-  link.exit().transition().duration(duration).remove();
-
-  // save positions for transitions
+  // store old positions
   nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
 }
 
-// diagonal for left->right (curved)
-function horizontalDiagonal(s, d) {
-  // s: source, d: target
-  return `M ${s.x} ${s.y}
-          C ${ (s.x + d.x)/2 } ${s.y},
-            ${ (s.x + d.x)/2 } ${d.y},
-            ${d.x} ${d.y}`;
-}
+// helper hide modal
+function hideAnyModal() { hideModal(); }
 
-// ---------- PREVIEW HANDLING ----------
-function hidePreview() {
-  g.selectAll("g.img-preview-group").remove();
-  openPreviewId = null;
-}
+// ensure clicking background hides modal
+svg.on("click", () => { /* allow nodes to handle collapse; background click handled by modal overlay */ });
 
-function togglePreview(nodeDatum) {
-  // if same preview open, close it
-  if (openPreviewId === nodeDatum.data.ID) {
-    hidePreview();
-    return;
-  }
-  // else close existing and open new
-  hidePreview();
-  showPreview(nodeDatum);
-}
-
-function showPreview(d) {
-  // compute image URL: handle GitHub blob -> raw, handle Drive share link -> uc?export=view
-  let raw = d.data.PhotoURL || "";
-  if (!raw) return;
-  const ghRaw = githubRawFromBlob(raw);
-  if (ghRaw !== raw) raw = ghRaw;
-  // also handle drive share link
-  const driveId = driveFileIdFromLink(raw);
-  if (driveId) raw = driveViewUrl(driveId);
-
-  // compute placement: below the node rectangle
-  // For left->right layout: node is at (d.x, d.y), we place preview at (d.x, d.y + offset)
-  // We want preview to appear below node visually (so y increases for rightwards), but we can place it slightly below (vertical)
-  const px = d.x;
-  const py = d.y + 24; // place to the right a little
-  const imageW = IMAGE_WIDTH;
-  const imageH = Math.floor(imageW * 0.66);
-
-  // Append group
-  const pg = g.append("g").attr("class", "img-preview-group");
-
-  // compute top-left such that preview appears slightly below node center
-  const x = px - imageW/2;     // center under node horizontally
-  const y = py + 18;          // below the node rectangle vertically (since y is horizontal axis, we offset further right; but svg coords are x vertical, y horizontal)
-  // Note: in our tree, coordinates are (x,y) => x vertical, y horizontal. For placing a box "below" the node visually when tree grows left->right,
-  // we interpret "below" as slightly towards bottom of svg (increase x). So we add an x offset, while keeping y relatively near node's horizontal position.
-  const boxX = x;
-  const boxY = d.x + 28; // vertical offset downward
-  const boxWidth = Math.min(imageW, 1200); // cap
-  const boxHeight = imageH;
-
-  // Use foreignObject so we can style image easily
-  const fo = pg.append("foreignObject")
-    .attr("x", boxX)
-    .attr("y", boxY)
-    .attr("width", boxWidth)
-    .attr("height", boxHeight)
-    .attr("class", "preview-fo");
-
-  const foDiv = fo.append("xhtml:div")
-    .attr("class", "preview-box")
-    .style("width", boxWidth + "px")
-    .style("height", boxHeight + "px")
-    .style("display", "flex")
-    .style("align-items", "center")
-    .style("justify-content", "center")
-    .style("padding", "6px")
-    .style("box-sizing", "border-box");
-
-  foDiv.append("img")
-    .attr("src", raw)
-    .attr("alt", d.data.Name || "")
-    .attr("class", "img-preview")
-    .style("width", "100%")
-    .style("height", "auto")
-    .on("click", (event) => {
-      // collapse on click (A3-S1 behavior)
-      event.stopPropagation();
-      hidePreview();
-    });
-
-  // Optional details beneath image if present: add a small caption area
-  if (d.data.Details) {
-    // append a small caption as a separate foreignObject beneath the image
-    const captionFo = pg.append("foreignObject")
-      .attr("x", boxX)
-      .attr("y", boxY + boxHeight + 6)
-      .attr("width", boxWidth)
-      .attr("height", 60);
-
-    captionFo.append("xhtml:div")
-      .style("font-size", "13px")
-      .style("padding", "6px")
-      .style("color", "#222")
-      .style("background", "#fff")
-      .style("border-radius", "4px")
-      .style("box-shadow", "0 2px 8px rgba(0,0,0,0.08)")
-      .html(d.data.Details);
-  }
-
-  openPreviewId = d.data.ID;
-}
-
-// clicking background hides preview
-svg.on("click", () => {
-  hidePreview();
-});
-
-// ESC to close
-document.addEventListener("keydown", (ev) => {
-  if (ev.key === "Escape") hidePreview();
-});
+// end of script
 </script>
 </body>
 </html>
