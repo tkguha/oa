@@ -30,12 +30,13 @@
       font-size:18px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.12);
       position: relative;
-      z-index: 5;
+      z-index: 3;
     }
-    /* DOWNLOAD tab */
+
+    /* DOWNLOAD tab: placed below header (not covering it) */
     #download-tab {
       position: fixed;
-      top: 18px;
+      top: 68px;              /* below header */
       left: 18px;
       background: var(--blue);
       color: white;
@@ -47,7 +48,8 @@
       z-index: 20;
       text-decoration: none;
     }
-    #container { position: relative; height: calc(100vh - 56px); }
+
+    #container { position: relative; height: calc(100vh - 68px); }
     svg { width: 100%; height: 100%; cursor: grab; display:block; }
     .link { fill: none; stroke: #bbb; stroke-width: 2px; }
     .node rect { fill: var(--card); stroke: var(--blue); stroke-width:2px; rx:10; ry:10; }
@@ -60,14 +62,21 @@
     .img-preview {
       pointer-events: auto;
       cursor: pointer;
+      display:block;
+      max-width:100%;
+      height:auto;
+      border-radius:6px;
     }
-    /* small shadow for previews */
     .preview-box {
-      box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.25);
       border-radius: 6px;
       overflow: hidden;
       background: #fff;
       border: 1px solid rgba(0,0,0,0.06);
+    }
+    /* small mobile tweaks */
+    @media (max-width:700px) {
+      .node text { font-size: 12px; }
     }
   </style>
 </head>
@@ -84,15 +93,15 @@
 <script>
 // ---------- CONFIG ----------
 const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQbYH3fZ0Fkz4Co5QtSCoZzkWku4jurdda6ttNrWKbJXG94odN5X0hSL06CfaHKREYJ7H8aa8PQmWOx/pub?output=csv";
-
-// The Drive file to be downloaded when the DOWNLOAD tab is clicked
+// Drive file to download when "DOWNLOAD" clicked (kept as you requested earlier)
 const downloadDriveShareLink = "https://drive.google.com/file/d/1uOaf9uWl8KKw1KT5l3AbNvvaz7Ckh2lL/view?usp=sharing";
+// Image display size selection (IMG-L => 600px)
+const IMAGE_WIDTH = 600;
 // ----------------------------
 
-// Helper: convert Drive share view link -> direct display & download
+// Helpers: convert Drive share -> view/download, convert GitHub blob -> raw
 function driveFileIdFromLink(link) {
-  // matches /d/FILEID/
-  const m = link.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  const m = link && link.match(/\/d\/([a-zA-Z0-9_-]+)/);
   return m ? m[1] : null;
 }
 function driveViewUrl(fileId) {
@@ -101,13 +110,21 @@ function driveViewUrl(fileId) {
 function driveDownloadUrl(fileId) {
   return `https://drive.google.com/uc?export=download&id=${fileId}`;
 }
+function githubRawFromBlob(link) {
+  // convert https://github.com/user/repo/blob/branch/path -> https://raw.githubusercontent.com/user/repo/branch/path
+  if (!link) return link;
+  const m = link.match(/^https:\/\/github\.com\/([^\/]+)\/([^\/]+)\/blob\/([^\/]+)\/(.+)$/);
+  if (m) {
+    return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}/${m[4]}`;
+  }
+  return link;
+}
 
-// Set DOWNLOAD button href
+// Set DOWNLOAD button href (prefer direct download)
 const dlId = driveFileIdFromLink(downloadDriveShareLink);
 if (dlId) {
   document.getElementById("download-tab").href = driveDownloadUrl(dlId);
 } else {
-  // fallback: link directly to provided share URL
   document.getElementById("download-tab").href = downloadDriveShareLink;
 }
 
@@ -120,15 +137,17 @@ const g = svg.append("g");
 const zoom = d3.zoom().scaleExtent([0.3, 3]).on("zoom", (event) => g.attr("transform", event.transform));
 svg.call(zoom);
 
-// tree layout (vertical)
-const tree = d3.tree().nodeSize([70, 220]); // [xSpacing, ySpacing]
+// Horizontal tree layout (left -> right)
+const tree = d3.tree().nodeSize([100, 220]); // [vertical spacing, horizontal spacing]
 const duration = 450;
 let rootNode;
 let nodeIndex = 0;
 
-// Read CSV and build tree
+// track open preview (only one at a time)
+let openPreviewId = null;
+
 d3.csv(csvUrl).then(rows => {
-  // convert list into map keyed by ID
+  // map rows by ID
   const map = {};
   rows.forEach(r => {
     const id = (r.ID || "").toString().trim();
@@ -142,7 +161,7 @@ d3.csv(csvUrl).then(rows => {
     };
   });
 
-  // find root (first entry with no ParentID)
+  // build tree relationships
   let rootData = null;
   Object.values(map).forEach(n => {
     if (n.ParentID && map[n.ParentID]) {
@@ -161,10 +180,10 @@ d3.csv(csvUrl).then(rows => {
 
   update(rootNode);
 
-  // initial zoom/pan to center top region
+  // initial zoom/pan: center top-left-ish area
   const initialScale = 0.8;
-  const initialX = window.innerWidth / 2 - 100;
-  const initialY = 70;
+  const initialX = 80;
+  const initialY = 40;
   svg.call(zoom.transform, d3.zoomIdentity.translate(initialX, initialY).scale(initialScale));
 });
 
@@ -182,44 +201,42 @@ function update(source) {
   const nodes = treeData.descendants();
   const links = treeData.links();
 
-  // vertical spacing
-  nodes.forEach(d => d.y = d.depth * 240);
+  // set positions for horizontal layout: x = depth spacing? for d3.tree for left->right we use x,y swapped
+  // keep the default: nodes have x (vertical), y (horizontal). We want left->right so treat y as horizontal.
+  nodes.forEach(d => d.y = d.depth * 220);
 
   // NODES
   const node = g.selectAll("g.node").data(nodes, d => d.data.ID);
 
-  // Enter
+  // ENTER
   const nodeEnter = node.enter().append("g")
     .attr("class", "node")
     .attr("transform", d => `translate(${source.x0 || 0},${source.y0 || 0})`)
     .on("click", (event, d) => {
-      // clicking the main node toggles children (existing behaviour)
-      if (d.children) {
-        d._children = d.children; d.children = null;
-      } else {
-        d.children = d._children; d._children = null;
-      }
-      // hide any open previews inside this subtree to avoid orphan previews
-      hideAllPreviews();
+      // clicking node toggles children
+      if (d.children) { d._children = d.children; d.children = null; }
+      else { d.children = d._children; d._children = null; }
+      // hide previews to avoid orphaned boxes
+      hidePreview();
       update(d);
     });
 
-  // Text (centered)
+  // TEXT
   nodeEnter.append("text")
     .attr("dy", "0.35em")
     .attr("text-anchor", "middle")
     .text(d => d.data.Name);
 
-  // After text is rendered, measure and add background rect
+  // After rendering text, measure bbox and insert rect
   nodeEnter.each(function(d) {
-    const nodeG = d3.select(this);
-    const textEl = nodeG.select("text").node();
+    const thisG = d3.select(this);
+    const textEl = thisG.select("text").node();
     const bbox = textEl.getBBox();
     const padX = 12, padY = 6;
     const rectW = bbox.width + padX*2;
     const rectH = bbox.height + padY*2;
 
-    nodeG.insert("rect", "text")
+    thisG.insert("rect", "text")
       .attr("x", -rectW/2)
       .attr("y", -rectH/2)
       .attr("width", rectW)
@@ -229,34 +246,31 @@ function update(source) {
       .style("stroke", "#1976d2")
       .style("stroke-width", 2);
 
-    // If PhotoURL exists, add a small image icon to the right of the text
+    // If a PhotoURL exists, add a small camera icon to the right of the rect
     if (d.data.PhotoURL) {
-      const iconX = rectW/2 + 10;
-      nodeG.append("text")
+      const iconX = rectW/2 + 12;
+      thisG.append("text")
         .attr("class", "img-icon")
         .attr("x", iconX)
         .attr("dy", "0.35em")
-        .text("🖼️")
+        .text("📷")
         .on("click", (event, nodeDatum) => {
-          // prevent node click from firing
+          // don't trigger node click
           event.stopPropagation();
           togglePreview(nodeDatum);
         })
         .append("title")
-        .text("Open image (click to toggle). Click image to enlarge.");
+        .text("Open image (click to toggle). Click image to collapse.");
     }
   });
 
-  // Merge & transition positions
+  // UPDATE (position)
   const nodeUpdate = nodeEnter.merge(node);
   nodeUpdate.transition().duration(duration).attr("transform", d => `translate(${d.x},${d.y})`);
-  nodeUpdate.select("rect").attr("rx", 10); // ensure rect present
 
-  // Exit
+  // EXIT
   const nodeExit = node.exit().transition().duration(duration)
     .attr("transform", d => `translate(${source.x},${source.y})`).remove();
-
-  nodeExit.select("rect").attr("width", 0).attr("height", 0);
 
   // LINKS
   const link = g.selectAll("path.link").data(links, d => d.target.data.ID);
@@ -265,165 +279,134 @@ function update(source) {
     .attr("class", "link")
     .attr("d", d => {
       const o = { x: source.x0 || 0, y: source.y0 || 0 };
-      return diagonal(o, o);
+      return horizontalDiagonal(o, o);
     });
 
-  linkEnter.merge(link).transition().duration(duration).attr("d", d => diagonal(d.source, d.target));
+  linkEnter.merge(link).transition().duration(duration).attr("d", d => horizontalDiagonal(d.source, d.target));
   link.exit().transition().duration(duration).remove();
 
-  // save positions
+  // save positions for transitions
   nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
 }
 
-// diagonal curve (vertical)
-function diagonal(s, d) {
+// diagonal for left->right (curved)
+function horizontalDiagonal(s, d) {
+  // s: source, d: target
   return `M ${s.x} ${s.y}
-          C ${s.x} ${(s.y + d.y)/2},
-            ${d.x} ${(s.y + d.y)/2},
+          C ${ (s.x + d.x)/2 } ${s.y},
+            ${ (s.x + d.x)/2 } ${d.y},
             ${d.x} ${d.y}`;
 }
 
 // ---------- PREVIEW HANDLING ----------
-
-// Remove any open previews
-function hideAllPreviews() {
+function hidePreview() {
   g.selectAll("g.img-preview-group").remove();
-  // also reset _imgOpen markers in the data tree
-  rootNode.each(n => { if (n.data) n.data._imgOpen = false; if (n.data) n.data._imgLarge = false; });
+  openPreviewId = null;
 }
 
-// Toggle preview for a given node datum (d3 hierarchy node)
-function togglePreview(d) {
-  // If that node currently has preview, remove it
-  if (d.data._imgOpen) {
-    hidePreviewForNode(d);
+function togglePreview(nodeDatum) {
+  // if same preview open, close it
+  if (openPreviewId === nodeDatum.data.ID) {
+    hidePreview();
     return;
   }
-
-  // Close other previews and open this one
-  hideAllPreviews();
-  showPreviewForNode(d);
+  // else close existing and open new
+  hidePreview();
+  showPreview(nodeDatum);
 }
 
-function showPreviewForNode(d) {
-  // convert Drive link if needed
-  const rawUrl = d.data.PhotoURL || "";
-  const driveId = driveFileIdFromLink(rawUrl);
-  const imageUrl = driveId ? driveViewUrl(driveId) : rawUrl;
+function showPreview(d) {
+  // compute image URL: handle GitHub blob -> raw, handle Drive share link -> uc?export=view
+  let raw = d.data.PhotoURL || "";
+  if (!raw) return;
+  const ghRaw = githubRawFromBlob(raw);
+  if (ghRaw !== raw) raw = ghRaw;
+  // also handle drive share link
+  const driveId = driveFileIdFromLink(raw);
+  if (driveId) raw = driveViewUrl(driveId);
 
-  // compute initial small preview size
-  const smallW = 220;
-  const smallH = 160;
-
-  // Create a group attached to the node to hold the preview box
-  // Position under the node: translate(x, y + offset)
-  const previewGroup = g.append("g").attr("class", "img-preview-group");
-
-  // Convert node (d.x,d.y) to current group coordinates (since g may be zoomed)
-  // We'll append relative to g itself; positions are in g-coordinates already.
-
+  // compute placement: below the node rectangle
+  // For left->right layout: node is at (d.x, d.y), we place preview at (d.x, d.y + offset)
+  // We want preview to appear below node visually (so y increases for rightwards), but we can place it slightly below (vertical)
   const px = d.x;
-  const py = d.y + 40; // below the node rectangle
+  const py = d.y + 24; // place to the right a little
+  const imageW = IMAGE_WIDTH;
+  const imageH = Math.floor(imageW * 0.66);
 
-  // Append foreignObject to allow HTML inside (image + caption)
-  const fo = previewGroup.append("foreignObject")
-    .attr("x", px - smallW/2)
-    .attr("y", py)
-    .attr("width", smallW)
-    .attr("height", smallH)
+  // Append group
+  const pg = g.append("g").attr("class", "img-preview-group");
+
+  // compute top-left such that preview appears slightly below node center
+  const x = px - imageW/2;     // center under node horizontally
+  const y = py + 18;          // below the node rectangle vertically (since y is horizontal axis, we offset further right; but svg coords are x vertical, y horizontal)
+  // Note: in our tree, coordinates are (x,y) => x vertical, y horizontal. For placing a box "below" the node visually when tree grows left->right,
+  // we interpret "below" as slightly towards bottom of svg (increase x). So we add an x offset, while keeping y relatively near node's horizontal position.
+  const boxX = x;
+  const boxY = d.x + 28; // vertical offset downward
+  const boxWidth = Math.min(imageW, 1200); // cap
+  const boxHeight = imageH;
+
+  // Use foreignObject so we can style image easily
+  const fo = pg.append("foreignObject")
+    .attr("x", boxX)
+    .attr("y", boxY)
+    .attr("width", boxWidth)
+    .attr("height", boxHeight)
     .attr("class", "preview-fo");
 
-  // Insert HTML content into foreignObject
   const foDiv = fo.append("xhtml:div")
     .attr("class", "preview-box")
-    .style("width", smallW + "px")
-    .style("height", smallH + "px")
+    .style("width", boxWidth + "px")
+    .style("height", boxHeight + "px")
     .style("display", "flex")
-    .style("flex-direction", "column")
     .style("align-items", "center")
     .style("justify-content", "center")
     .style("padding", "6px")
     .style("box-sizing", "border-box");
 
-  // Image element
-  const img = foDiv.append("img")
-    .attr("src", imageUrl)
+  foDiv.append("img")
+    .attr("src", raw)
     .attr("alt", d.data.Name || "")
     .attr("class", "img-preview")
     .style("width", "100%")
     .style("height", "auto")
-    .style("border-radius", "6px")
-    .style("display", "block")
     .on("click", (event) => {
-      // toggle large/small
+      // collapse on click (A3-S1 behavior)
       event.stopPropagation();
-      toggleLargePreview(d, fo, px, py);
+      hidePreview();
     });
 
-  // Optional details text (small)
+  // Optional details beneath image if present: add a small caption area
   if (d.data.Details) {
-    foDiv.append("div")
-      .style("font-size", "12px")
-      .style("padding-top", "6px")
-      .style("text-align", "center")
+    // append a small caption as a separate foreignObject beneath the image
+    const captionFo = pg.append("foreignObject")
+      .attr("x", boxX)
+      .attr("y", boxY + boxHeight + 6)
+      .attr("width", boxWidth)
+      .attr("height", 60);
+
+    captionFo.append("xhtml:div")
+      .style("font-size", "13px")
+      .style("padding", "6px")
       .style("color", "#222")
-      .text(d.data.Details);
+      .style("background", "#fff")
+      .style("border-radius", "4px")
+      .style("box-shadow", "0 2px 8px rgba(0,0,0,0.08)")
+      .html(d.data.Details);
   }
 
-  // mark as open
-  d.data._imgOpen = true;
-  d.data._imgLarge = false;
+  openPreviewId = d.data.ID;
 }
 
-function hidePreviewForNode(d) {
-  g.selectAll("g.img-preview-group").remove();
-  d.data._imgOpen = false;
-  d.data._imgLarge = false;
-}
-
-// Toggle between small preview and large inline expanded preview (A3)
-function toggleLargePreview(d, fo, px, py) {
-  // If already large, shrink back
-  if (d.data._imgLarge) {
-    // shrink back to small dimensions
-    const smallW = 220, smallH = 160;
-    fo.transition().duration(300).attr("x", px - smallW/2).attr("y", py).attr("width", smallW).attr("height", smallH);
-    // set flag
-    d.data._imgLarge = false;
-    return;
-  }
-
-  // Expand: make width ~80% of svg width and reposition centered under node (or centered overall)
-  const svgRect = svg.node().getBoundingClientRect();
-  const targetW = Math.floor(svgRect.width * 0.8);
-  const targetH = Math.floor(targetW * 0.6);
-  // center horizontally around node.x but keep within svg bounds
-  let newX = px - targetW/2;
-  if (newX < -svgRect.width/2 + 20) newX = -svgRect.width/2 + 20; // ensure not off-left (g coords)
-  // but since our g translation might be different, we'll center to px centered.
-
-  // For simplicity, put expanded preview centered in the visible svg
-  const centerX = (rootNode.x0 || 0);
-  const svgCenter = svgRect.width / 2;
-  // compute x in g-coordinates such that it roughly centers in viewport
-  // We'll set the foreignObject x = px - targetW/2 (this is in g-coordinates)
-  fo.transition().duration(300).attr("x", px - targetW/2).attr("y", py).attr("width", targetW).attr("height", targetH);
-  d.data._imgLarge = true;
-}
-
-// Click anywhere in SVG background to close any open preview
+// clicking background hides preview
 svg.on("click", () => {
-  hideAllPreviews();
+  hidePreview();
 });
 
-// Ensure clicks on previews don't propagate to SVG background
-// (we already used stopPropagation on img clicks)
-
-// Optionally: close previews on ESC
+// ESC to close
 document.addEventListener("keydown", (ev) => {
-  if (ev.key === "Escape") hideAllPreviews();
+  if (ev.key === "Escape") hidePreview();
 });
-
 </script>
 </body>
 </html>
