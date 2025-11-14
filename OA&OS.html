@@ -5,168 +5,170 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Open Access & Open Science</title>
 <script src="https://d3js.org/d3.v7.min.js"></script>
+
 <style>
-  body{margin:0;font-family:Segoe UI,Arial,Helvetica;background:#f4f6fa}
-  header{background:#0b63b6;color:#fff;padding:14px 18px;text-align:center;font-weight:600;font-size:20px}
-  #canvas{position:relative;height:calc(100vh - 56px)}
+  body{margin:0;font-family:Segoe UI,Arial;background:#f4f6fa}
+  header{
+    background:#0b63b6;color:white;
+    padding:15px;text-align:center;
+    font-size:22px;font-weight:600;
+  }
+  #canvas{height:calc(100vh - 60px);position:relative}
   svg{width:100%;height:100%;cursor:grab;display:block}
-  .link{fill:none;stroke:#cfcfcf;stroke-width:2}
-  .node text{font-size:14px;pointer-events:none;fill:#071126}
-  .node rect{rx:10;ry:10;stroke-width:2;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.12))}
-  .tooltip{position:absolute;display:none;background:rgba(0,0,0,0.85);color:#fff;padding:8px 10px;border-radius:6px;max-width:320px;z-index:20;font-size:13px}
-  #controls{position:absolute;right:12px;top:12px;z-index:30}
-  .btn{background:#fff;border:1px solid #d0d7de;padding:8px 10px;border-radius:6px;cursor:pointer;margin-left:6px;box-shadow:0 1px 2px rgba(0,0,0,0.06)}
-  #legend{position:absolute;left:12px;top:12px;background:#fff;padding:8px 10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.06);font-size:13px;z-index:30}
-  .end-dot{stroke:#b00000;fill:#d32f2f}
-  #debug{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,0.95);padding:8px;border-radius:8px;font-size:12px;z-index:30;max-width:360px}
+
+  .node text{font-size:14px;pointer-events:none}
+  .node rect{
+    rx:10; ry:10; stroke-width:2;
+    filter:drop-shadow(0 1px 2px rgba(0,0,0,0.15));
+  }
+
+  .link{fill:none;stroke:#bfbfbf;stroke-width:2}
+
+  .end-dot{
+    fill:#d32f2f; stroke:#b00000; stroke-width:1.5;
+  }
+
+  .tooltip{
+    position:absolute;display:none;
+    background:rgba(0,0,0,0.85);color:white;
+    padding:8px 12px;border-radius:6px;
+    max-width:300px;font-size:13px;
+    z-index:100;
+  }
+
+  #legend{
+    position:absolute;left:15px;top:15px;
+    background:white;padding:10px;border-radius:8px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.1);
+    font-size:13px;z-index:20;
+  }
+
+  #fitBtn{
+    position:absolute;right:15px;top:15px;
+    background:white;border:1px solid #cbd3dd;
+    padding:8px 12px;border-radius:6px;
+    cursor:pointer;font-size:13px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.15);
+    z-index:20;
+  }
 </style>
 </head>
+
 <body>
 <header>Open Access & Open Science</header>
+
 <div id="canvas">
-  <div id="legend">Click node → open PhotoURL (if present). Double-click → expand/collapse. Hover → show details.</div>
-  <div id="controls">
-    <button id="fitBtn" class="btn">Fit to view</button>
-    <button id="debugBtn" class="btn">Console debug</button>
+  <div id="legend">
+    Click → open URL  
+    Double-click → expand/collapse  
+    Hover → details
   </div>
+
+  <button id="fitBtn">Fit to view</button>
+
   <div id="tooltip" class="tooltip"></div>
-  <div id="debug" style="display:none">
-    <strong>Debug:</strong>
-    <div id="dbgText" style="white-space:pre-wrap;font-family:monospace;font-size:12px"></div>
-  </div>
   <svg></svg>
 </div>
 
 <script>
-(async function(){
-  // ---------- CONFIG ----------
-  const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQtE2jkMXdOlWaUrLFglbi5PH7hwvN0H7wV-A3EEZrQjZFLhI_d0AA1_nN-I9YrXXlmwzgolneWo8Uk/pub?gid=0&single=true&output=csv";
-  const ROOT_ID = "1";                // forced root (string)
-  const LEFT_COUNT = 2;               // first N children to the left
-  const DEPTH_SPACING = 140; // was 220
-  const VERT_SPACING = 45; // was 80
-  const colors = ["#08306b","#e3f2fd","#fff3e0","#e8f5e9","#f3e8ff","#fff5f5"];
-  const strokes = ["#08306b","#2b6cb0","#fb8c00","#2e7d32","#6a1b9a","#c62828"];
-  // ---------- SETUP ----------
-  const svg = d3.select("svg");
-  const g = svg.append("g");
-  const tooltip = d3.select("#tooltip");
-  const dbg = d3.select("#debug");
-  const dbgText = d3.select("#dbgText");
-  const width = () => svg.node().clientWidth;
-  const height = () => svg.node().clientHeight;
-  const zoom = d3.zoom().scaleExtent([0.2,3]).on("zoom", (e)=> g.attr("transform", e.transform));
-  svg.call(zoom);
-  // Fit to view button
-  document.getElementById("fitBtn").onclick = ()=> {
-    // simple center transform
-    svg.transition().duration(600).call(zoom.transform, d3.zoomIdentity.translate(width()/2 - 100, 120).scale(0.9));
-  };
-  document.getElementById("debugBtn").onclick = ()=> {
-    dbg.style("display", dbg.style("display") === "none" ? "block" : "none");
-  };
+// ===============================
+// CONFIGURATION
+// ===============================
+const CSV_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vQtE2jkMXdOlWaUrLFglbi5PH7hwvN0H7wV-A3EEZrQjZFLhI_d0AA1_nN-I9YrXXlmwzgolneWo8Uk/pub?gid=0&single=true&output=csv";
 
-  // ---------- HELPER: safe CSV load & normalize ----------
-  async function loadCsv(url){
-    const resp = await fetch(url, {cache: "no-store"});
-    if(!resp.ok) throw new Error("CSV load failed: " + resp.status + " " + resp.statusText);
-    const txt = await resp.text();
-    // parse using d3.csvParse for consistent header handling
-    const parsed = d3.csvParse(txt);
-    return parsed.map(row => {
-      // normalize keys by lowercase trim
-      const normalized = {};
-      Object.keys(row).forEach(k=> normalized[k.trim().toLowerCase()] = (row[k]||"").trim());
-      // detect keys
-      const id = normalized.id || normalized['id '] || normalized[' id'] || normalized['#'] || normalized['key'] || "";
-      const name = normalized.name || normalized.names || normalized.title || normalized.label || "";
-      const parent = normalized.parentid || normalized.parent || normalized['parent id'] || "";
-      const photourl = normalized.photourl || normalized.photo || normalized.url || normalized.image || "";
-      const details = normalized.details || normalized.description || normalized.desc || "";
-      return { ID: String(id), Name: name, ParentID: String(parent), PhotoURL: photourl, Details: details };
-    });
-  }
+const ROOT_ID = "1";            // your central node
+const LEFT_COUNT = 2;           // first 2 branches on left
 
-  // ---------- BUILD TREE ----------
-  let rows;
-  try {
-    rows = await loadCsv(CSV_URL);
-    console.log("CSV rows:", rows.length);
-    dbgText.text("CSV rows: " + rows.length + "\\n" + rows.map(r=>r.ID + " | " + r.Name + " | parent=" + r.ParentID).join("\\n"));
-  } catch(err){
-    console.error(err);
-    alert("Error loading CSV. Open console for details.");
-    dbgText.text("CSV load error:\\n" + (err.message || err));
-    dbg.style("display","block");
-    return;
-  }
+// Compact layout
+const VERT_SPACING = 45;
+const DEPTH_SPACING = 140;
+
+// Color palette by depth
+const fills  = ["#08306b","#e3f2fd","#fff3e0","#e8f5e9","#f3e8ff","#fff5f5"];
+const strokes=["#08306b","#2b6cb0","#fb8c00","#2e7d32","#6a1b9a","#c62828"];
+
+// ===============================
+// SETUP
+// ===============================
+const svg = d3.select("svg");
+const g = svg.append("g");
+const tooltip = d3.select("#tooltip");
+
+const zoom = d3.zoom().scaleExtent([0.2,3]).on("zoom", e => g.attr("transform",e.transform));
+svg.call(zoom);
+document.getElementById("fitBtn").onclick = () => fitToContent();
+
+// ===============================
+// LOAD CSV
+// ===============================
+d3.csv(CSV_URL).then(raw => {
+
+  // normalize rows
+  raw = raw.map(r => ({
+    ID: String(r.ID || "").trim(),
+    Name: (r.Name || r.NAMES || "").trim(),
+    ParentID: String(r.ParentID || "").trim(),
+    PhotoURL: (r.PhotoURL || "").trim(),
+    Details: (r.Details || "").trim()
+  }));
 
   // build map
   const map = new Map();
-  rows.forEach(r => {
-    const id = String(r.ID).trim();
-    if(!id) return;
-    map.set(id, Object.assign({}, r, { children: [] }));
+  raw.forEach(r => {
+    if(r.ID) map.set(r.ID, {...r, children:[]});
   });
 
   // attach children
   map.forEach(node => {
-    const pid = (node.ParentID || "").trim();
-    if(pid && map.has(pid)) {
-      map.get(pid).children.push(node);
+    const parent = node.ParentID;
+    if(parent && map.has(parent)){
+      map.get(parent).children.push(node);
     }
   });
 
-  // if there's any top-level nodes (no ParentID) not attached to ROOT_ID, attach them as children of ROOT_ID
-  if(!map.has(ROOT_ID)) {
-    alert("ERROR: Root ID " + ROOT_ID + " not found in spreadsheet. Check CSV.");
-    dbgText.text("Root ID not found: " + ROOT_ID);
-    dbg.style("display","block");
-    console.error("Root ID not found:", ROOT_ID);
+  // ensure root exists
+  if(!map.has(ROOT_ID)){
+    alert("ERROR: Central Node ID " + ROOT_ID + " not found in sheet.");
     return;
   }
 
   const rootNode = map.get(ROOT_ID);
 
-  // find rows that have empty ParentID and are not the root — attach them under root if they're top-level
-  const topLevels = Array.from(map.values()).filter(n=>!(n.ParentID) || n.ParentID === "" || n.ParentID === "0");
-  topLevels.forEach(n=>{
-    if(String(n.ID) !== String(ROOT_ID) && !rootNode.children.some(c=>String(c.ID)===String(n.ID))) {
-      // attach as child of root
-      rootNode.children.push(n);
+  // attach all top-level entries under root
+  raw.forEach(r => {
+    if(!r.ParentID && r.ID !== ROOT_ID){
+      rootNode.children.push(map.get(r.ID));
     }
   });
 
-  // create d3.hierarchy (it will read children property)
-  const root = d3.hierarchy(rootNode, d=> d.children && d.children.length ? d.children : null);
+  const root = d3.hierarchy(rootNode, d => d.children.length ? d.children : null);
   root.x0 = 0;
   root.y0 = 0;
 
-  // lock root's side (0) and assign left/right to its children — first N left, rest right
-  if(root.children && root.children.length){
+  // assign left/right
+  if(root.children){
     root.children.forEach((c,i)=>{
-      const side = (i < LEFT_COUNT) ? -1 : 1;
-      c.data._side = side;
-      assignSide(c, side);
+      const side = (i < LEFT_COUNT ? -1 : 1);
+      setSide(c, side);
     });
   }
 
-  // collapse everything initially except root + first-level
-  if(root.children) root.children.forEach(collapseAll);
+  // collapse first
+  root.children?.forEach(collapseAll);
 
-  // expand root and its immediate children for visibility
-  root.children && root.children.forEach(c => { c.children = c._children; c._children = null; });
+  // expand root level
+  root.children?.forEach(c => { c.children = c._children; c._children = null; });
 
   update(root);
+  setTimeout(()=>fitToContent(), 300);
 
-  // center view
-  svg.call(zoom.transform, d3.zoomIdentity.translate(width()/2 - 100, 120).scale(0.9));
+  // =============== FUNCTIONS ===============
 
-  // ---------- FUNCTIONS ----------
-  function assignSide(node, side){
+  function setSide(node, side){
     node.data._side = side;
-    if(node.children) node.children.forEach(ch=> assignSide(ch, side));
-    if(node._children) node._children.forEach(ch=> assignSide(ch, side));
+    node.children?.forEach(c => setSide(c,side));
+    node._children?.forEach(c => setSide(c,side));
   }
 
   function collapseAll(node){
@@ -178,142 +180,141 @@
   }
 
   function update(source){
-    // compute tree layout (we use vertical spacing for x, and set y based on depth and side)
+    // build a vertical-only tree, we override y manually
     const layout = d3.tree().nodeSize([VERT_SPACING, 100]);
     const treeData = layout(root);
     const nodes = treeData.descendants();
     const links = treeData.links();
 
-    // set y as side * depth * DEPTH_SPACING
     nodes.forEach(d=>{
-      d.y = (d.depth === 0) ? 0 : ( (d.data._side === undefined ? (d.parent ? d.parent.data._side || 1 : 1) : d.data._side) * d.depth * DEPTH_SPACING );
-      // keep x as computed
+      const side = d.data._side !== undefined ?
+                   d.data._side : (d.parent ? d.parent.data._side || 1 : 1);
       d.screenX = d.x;
-      d.screenY = d.y;
+      d.screenY = d.depth * DEPTH_SPACING * side;
     });
 
-    // create nodes
-    const node = g.selectAll("g.node").data(nodes, d => d.data.ID);
+    // --- NODES ---
+    const node = g.selectAll("g.node").data(nodes, d=>d.data.ID);
 
-    const nodeEnter = node.enter().append("g")
+    const enter = node.enter().append("g")
       .attr("class","node")
-      .attr("transform", `translate(${source.y0 || 0},${source.x0 || 0})`)
+      .attr("transform",`translate(${source.y0},${source.x0})`)
       .style("cursor","pointer")
-      .on("click", function(event, d){
-        event.stopPropagation();
-        // If PhotoURL present -> open; otherwise toggle
-        if(d.data.PhotoURL && d.data.PhotoURL.length){
-          window.open(d.data.PhotoURL, "_blank", "noopener");
-          return;
-        }
-        // toggle children
-        if(d.children){ d._children = d.children; d.children = null; }
-        else { d.children = d._children; d._children = null; }
-        update(d);
+      .on("click",(e,d)=>{
+        if(d.data.PhotoURL) window.open(d.data.PhotoURL,"_blank");
       })
-      .on("dblclick", function(event,d){
-        event.stopPropagation();
-        if(d.children){ d._children = d.children; d.children = null; }
-        else { d.children = d._children; d._children = null; }
+      .on("dblclick",(e,d)=>{
+        e.stopPropagation();
+        if(d.children){ d._children=d.children; d.children=null }
+        else{ d.children=d._children; d._children=null }
         update(d);
+        setTimeout(()=>fitToContent(),200);
       })
-      .on("mouseover", function(event,d){
-        if(d.data.Details && d.data.Details.length){
+      .on("mouseover",(e,d)=>{
+        if(d.data.Details){
           tooltip.style("display","block").html(d.data.Details);
         }
       })
-      .on("mousemove", function(event){
-        const [mx,my] = d3.pointer(event, document.body);
-        tooltip.style("left", (mx+12) + "px").style("top", (my+12) + "px");
+      .on("mousemove",(e)=>{
+        tooltip.style("left",(e.pageX+12)+"px")
+               .style("top",(e.pageY+12)+"px");
       })
-      .on("mouseout", function(){ tooltip.style("display","none"); });
+      .on("mouseout",()=> tooltip.style("display","none"));
 
-    // append text
-    nodeEnter.append("text")
+    enter.append("text")
       .attr("dy","0.35em")
       .attr("text-anchor","middle")
-      .text(d => d.data.Name || "(no name)");
+      .text(d=>d.data.Name);
 
-    // compute rect sizes and append rect behind text
-    nodeEnter.each(function(d){
+    enter.each(function(d){
       const sel = d3.select(this);
-      const textNode = sel.select("text").node();
-      const bbox = textNode.getBBox();
-      const padX = 12, padY = 8;
-      const w = Math.max(80, bbox.width + padX*2);
-      const h = bbox.height + padY*2;
-      const depthIndex = Math.min(d.depth, colors.length - 1);
-      sel.insert("rect", "text")
-        .attr("x", -w/2)
-        .attr("y", -h/2)
-        .attr("width", w)
-        .attr("height", h)
-        .attr("rx", 10)
-        .attr("ry", 10)
-        .style("fill", d.depth === 0 ? colors[0] : colors[depthIndex])
-        .style("stroke", strokes[depthIndex])
-        .style("stroke-width", 2);
-      // root text color override
-      if(d.depth === 0){
-        sel.select("text").style("fill","#fff").style("font-weight","700");
+      const t = sel.select("text").node();
+      const bb = t.getBBox();
+      const padX=14,padY=8;
+      const w = bb.width + padX*2;
+      const h = bb.height + padY*2;
+      const depth = Math.min(d.depth, fills.length-1);
+
+      sel.insert("rect","text")
+        .attr("x",-w/2).attr("y",-h/2)
+        .attr("width",w).attr("height",h)
+        .style("fill", d.depth===0 ? fills[0] : fills[depth])
+        .style("stroke", strokes[depth]);
+
+      if(d.depth===0){
+        sel.select("text").style("fill","white").style("font-weight","700");
       }
-      // now add end-dot correctly positioned relative to rect
-      const rectW = w;
-      const side = (d.data._side !== undefined) ? d.data._side : (d.parent ? d.parent.data._side || 1 : 1);
+
+      const side = d.data._side || (d.parent ? d.parent.data._side || 1 : 1);
       sel.append("circle")
         .attr("class","end-dot")
-        .attr("r",6)
-        .attr("cx", side >= 0 ? (rectW/2 + 10) : -(rectW/2 + 10))
-        .attr("cy", 0)
-        .style("opacity", (!d.children && !d._children) ? 1 : 0);
+        .attr("r",5)
+        .attr("cx", side>=0 ? w/2+10 : -(w/2+10))
+        .attr("cy",0)
+        .style("opacity",(!d.children && !d._children)?1:0);
     });
 
-    // merge & position
-    const nodeMerge = nodeEnter.merge(node);
-    nodeMerge.transition().duration(450)
-      .attr("transform", d => `translate(${d.screenY},${d.screenX})`);
+    const merged = enter.merge(node);
 
-    // update end-dot visibility (in case children toggled)
-    nodeMerge.selectAll("circle.end-dot")
-      .transition().duration(300)
-      .style("opacity", d => (!d.children && !d._children) ? 1 : 0);
+    merged.transition().duration(450)
+      .attr("transform",d=>`translate(${d.screenY},${d.screenX})`);
 
-    // exit
-    node.exit().transition().duration(350).style("opacity",0).remove();
+    node.exit().transition().duration(300).style("opacity",0).remove();
 
-    // LINKS
-    const link = g.selectAll("path.link").data(links, d => d.target.data.ID);
-    link.enter().insert("path","g")
+    // --- LINKS ---
+    const link = g.selectAll("path.link").data(links, d=>d.target.data.ID);
+
+    link.enter()
+      .insert("path","g")
       .attr("class","link")
-      .attr("d", _ => {
-        const o = source;
-        return diagonal(o, o);
-      })
+      .attr("d",_=>mindCurve(source,source))
       .merge(link)
       .transition().duration(450)
-      .attr("d", d => diagonal(d.source, d.target));
+      .attr("d",d=>mindCurve(d.source,d.target));
+
     link.exit().transition().duration(300).style("opacity",0).remove();
 
-    // save old positions
-    nodes.forEach(d => { d.x0 = d.screenX; d.y0 = d.screenY; });
+    nodes.forEach(d=>{ d.x0=d.screenX; d.y0=d.screenY; });
   }
 
-  function diagonal(s,d){
-    const sx = s.screenY !== undefined ? s.screenY : s.y0;
-    const sy = s.screenX !== undefined ? s.screenX : s.x0;
-    const tx = d.screenY !== undefined ? d.screenY : d.y0;
-    const ty = d.screenX !== undefined ? d.screenX : d.x0;
-    const mx = (sx + tx)/2;
-    return `M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}`;
+  // MINDMAP S-CURVE
+  function mindCurve(s,d){
+    const sx=s.screenY, sy=s.screenX;
+    const tx=d.screenY, ty=d.screenX;
+    const dx=(tx-sx)*0.55;
+
+    return `
+      M ${sx},${sy}
+      C ${sx+dx},${sy},
+        ${tx-dx},${ty},
+        ${tx},${ty}
+    `;
   }
 
-  // show some debug info in console
-  console.log("Root ID forced:", ROOT_ID);
-  console.log("Top-level children of root:", root.children ? root.children.map(c=>c.data.ID + ":"+c.data.Name) : []);
-  dbgText.text("Root ID: " + ROOT_ID + "\\nTop-level children: " + (root.children ? root.children.map(c=>c.data.ID + " | " + c.data.Name).join("\\n") : "(none)"));
+  // AUTO FIT
+  function fitToContent(){
+    const box = g.node().getBBox();
+    const margin = 40;
+    const fullW = svg.node().clientWidth;
+    const fullH = svg.node().clientHeight;
 
-})();
+    const scale = Math.min(
+      (fullW - margin)/box.width,
+      (fullH - margin)/box.height
+    );
+
+    const tx = (fullW - box.width*scale)/2 - box.x*scale;
+    const ty = (fullH - box.height*scale)/2 - box.y*scale;
+
+    svg.transition()
+      .duration(600)
+      .call(
+        zoom.transform,
+        d3.zoomIdentity.translate(tx,ty).scale(scale)
+      );
+  }
+
+});
 </script>
 </body>
 </html>
-
