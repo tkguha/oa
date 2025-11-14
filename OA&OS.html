@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Open Access & Open Science</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<style>
+  :root{ --bg:#f4f6fa; --header-bg:#08306b; --font:"Segoe UI",Roboto,Arial,sans-serif; }
+  html,body{margin:0;height:100%;font-family:var(--font);background:var(--bg);}
+  header{background:var(--header-bg);color:white;padding:14px;text-align:center;font-size:20px;font-weight:700;}
+
+  #canvas{height:calc(100vh - 56px);position:relative;}
+  svg{width:100%;height:100%;cursor:grab;display:block;}
+
+  .node text{font-size:14px;pointer-events:none;}
+  .node rect{rx:10;ry:10;stroke-width:2;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.12));}
+
+  .link{fill:none;stroke:#cfcfcf;stroke-width:2;}
+
+  .end-dot{fill:#d32f2f;stroke:#b00000;stroke-width:1.5}
+
+  .tooltip{
+    position:absolute;display:none;background:rgba(0,0,0,0.85);color:white;
+    padding:8px 12px;border-radius:6px;max-width:320px;font-size:13px;z-index:100;
+  }
+
+  #legend{
+    position:absolute;left:14px;top:14px;background:white;padding:8px 12px;border-radius:8px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.08);font-size:13px;z-index:110;
+  }
+
+  #searchWrap{
+    position:absolute;right:16px;top:12px;z-index:150;
+  }
+  #search{
+    width:300px;padding:8px 10px;border-radius:8px;border:1px solid #cfd8e3;font-size:14px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.06);
+  }
+  #suggestions{
+    position:absolute;right:0;top:40px;background:#fff;border:1px solid #e6e9ef;border-radius:6px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.08);max-height:220px;overflow:auto;width:300px;font-size:14px;
+  }
+  .suggest-item{padding:8px 10px;cursor:pointer;}
+  .suggest-item:hover{background:#f1f5fb;}
+
+  .highlight { filter:drop-shadow(0 0 8px rgba(255,215,64,0.9));transition:filter 400ms ease; }
+</style>
+</head>
+
+<body>
+<header>Open Access & Open Science</header>
+
+<div id="canvas">
+
+  <div id="legend">
+    Click → open URL &nbsp;•&nbsp; Double-click → expand/collapse &nbsp;•&nbsp; Hover → details
+  </div>
+
+  <div id="searchWrap">
+    <input id="search" placeholder="Search nodes by name or ID..." autocomplete="off"/>
+    <div id="suggestions" style="display:none"></div>
+  </div>
+
+  <div id="tooltip" class="tooltip"></div>
+
+  <svg>
+    <g id="links"></g>
+    <g id="nodes"></g>
+  </svg>
+</div>
+
+<script>
+// =======================
+// CONFIG
+// =======================
+const CSV_URL =
+ "https://docs.google.com/spreadsheets/d/e/2PACX-1vQtE2jkMXdOlWaUrLFglbi5PH7hwvN0H7wV-A3EEZrQjZFLhI_d0AA1_nN-I9YrXXlmwzgolneWo8Uk/pub?gid=0&single=true&output=csv";
+
+const ROOT_ID = "1";
+const LEFT_COUNT = 2;
+const VERT_SPACING = 40;
+const DEPTH_SPACING = 140;
+
+const NODE_DUR = 180;
+const LINK_DUR = 180;
+
+// Branch palette (your choice B)
+const BRANCH_BASE = [
+  "#1976d2", // blue
+  "#2e7d32", // green
+  "#fb8c00", // orange
+  "#6a1b9a"  // purple
+];
+
+const ROOT_FILL="#08306b";
+const ROOT_STROKE="#08306b";
+
+// =======================
+// SVG + ZOOM
+// =======================
+const svg = d3.select("svg");
+const linkLayer = d3.select("#links");
+const nodeLayer = d3.select("#nodes");
+const tooltip = d3.select("#tooltip");
+
+const zoom = d3.zoom().scaleExtent([0.25,3]).on("zoom", e=> {
+  linkLayer.attr("transform",e.transform);
+  nodeLayer.attr("transform",e.transform);
+});
+svg.call(zoom);
+
+const W = () => svg.node().clientWidth;
+const H = () => svg.node().clientHeight;
+
+// =======================
+// LOAD CSV
+// =======================
+d3.csv(CSV_URL).then(raw => {
+
+  raw = raw.map(r => ({
+    ID: (r.ID||"").trim(),
+    Name: (r.Name||r.NAMES||"").trim(),
+    ParentID: (r.ParentID||"").trim(),
+    PhotoURL: (r.PhotoURL||"").trim(),
+    Details: (r.Details||"").trim()
+  }));
+
+  const map=new Map();
+  raw.forEach(r=>{ if(r.ID) map.set(r.ID,{...r,children:[]}); });
+
+  map.forEach(n=>{
+    if(n.ParentID && map.has(n.ParentID)) map.get(n.ParentID).children.push(n);
+  });
+
+  if(!map.has(ROOT_ID)){ alert("Root not found"); return; }
+
+  const rootNode = map.get(ROOT_ID);
+
+  raw.forEach(r=>{
+    if(!r.ParentID && r.ID!==ROOT_ID && map.has(r.ID))
+      rootNode.children.push(map.get(r.ID));
+  });
+
+  const root = d3.hierarchy(rootNode, d=>d.children.length?d.children:null);
+  root.x0=0; root.y0=0;
+
+  if(root.children){
+    root.children.forEach((c,i)=>{
+      const branch=i%4;
+      const side = (i<LEFT_COUNT ? -1 : 1);
+      assign(c,branch,side);
+    });
+  }
+
+  root.children?.forEach(collapse);
+
+  root.children?.forEach(c=>{ c.children=c._children; c._children=null; });
+
+  const allNodes=[];
+  root.each(d=>allNodes.push(d));
+  buildSearch(allNodes);
+
+  update(root);
+  setTimeout(()=>fit(),600);
+
+  // --------------------------
+  function assign(n,branch,side){
+    n.data._branch=branch;
+    n.data._side=side;
+    n.children?.forEach(c=>assign(c,branch,side));
+    n._children?.forEach(c=>assign(c,branch,side));
+  }
+
+  function collapse(n){
+    if(n.children){
+      n._children=n.children;
+      n._children.forEach(collapse);
+      n.children=null;
+    }
+  }
+
+  function colorFor(d){
+    if(d.depth===0) return {fill:ROOT_FILL,stroke:ROOT_STROKE};
+    const b=d.data._branch || 0;
+    const base=BRANCH_BASE[b%4];
+    const t=Math.min(d.depth/5,0.6); // lighten with depth
+    return {
+      fill:d3.interpolateRgb(base,"#ffffff")(t),
+      stroke:d3.color(base).darker(0.8)
+    };
+  }
+
+  // --------------------------
+  // UPDATE
+  // --------------------------
+  function update(src){
+    const layout = d3.tree().nodeSize([VERT_SPACING, 100]);
+    const td   = layout(root);
+    const nodes= td.descendants();
+    const links= td.links();
+
+    nodes.forEach(d=>{
+      const side=d.data._side ?? (d.parent? d.parent.data._side||1:1);
+      d.screenX=d.x;
+      d.screenY=d.depth * DEPTH_SPACING * side;
+    });
+
+    // --- Nodes ---
+    const nSel = nodeLayer.selectAll("g.node").data(nodes, d=>d.data.ID);
+
+    const nEnter=nSel.enter().append("g")
+      .attr("class","node")
+      .attr("transform",`translate(${src.y0||0},${src.x0||0})`)
+      .style("cursor","pointer")
+      .on("click",(e,d)=>{
+        if(d.data.PhotoURL) window.open(d.data.PhotoURL,"_blank");
+      })
+      .on("dblclick",(e,d)=>{
+        e.stopPropagation();
+        if(d.children){ d._children=d.children; d.children=null; }
+        else { d.children=d._children; d._children=null; }
+        update(d);
+      })
+      .on("mouseover",(e,d)=>{
+        if(d.data.Details){
+          tooltip.style("display","block").html(d.data.Details);
+        }
+      })
+      .on("mousemove",(e)=>{
+        tooltip.style("left",(e.pageX+12)+"px").style("top",(e.pageY+12)+"px");
+      })
+      .on("mouseout",()=>tooltip.style("display","none"));
+
+    nEnter.append("text")
+      .attr("dy","0.35em")
+      .attr("text-anchor","middle")
+      .text(d=>d.data.Name||d.data.ID)
+      .style("opacity",0);
+
+    nEnter.each(function(d){
+      const sel=d3.select(this);
+      const tn = sel.select("text").node();
+      const bb = tn.getBBox();
+      const padX=12,padY=8;
+      const w=bb.width+padX*2;
+      const h=bb.height+padY*2;
+
+      const col=colorFor(d);
+
+      sel.insert("rect","text")
+        .attr("x",-w/2).attr("y",-h/2)
+        .attr("width",w).attr("height",h)
+        .style("fill",col.fill)
+        .style("stroke",col.stroke)
+        .style("opacity",0);
+
+      if(d.depth===0){
+        sel.select("rect").style("fill",ROOT_FILL).style("stroke",ROOT_STROKE);
+        sel.select("text").style("fill","#fff").style("font-weight",700);
+      }
+
+      const side=d.data._side ?? (d.parent?d.parent.data._side:1);
+      sel.append("circle")
+        .attr("class","end-dot")
+        .attr("r",6)
+        .attr("cx", side>=0 ? (w/2+10) : -(w/2+10))
+        .attr("cy",0)
+        .style("opacity",(!d.children && !d._children)?1:0);
+    });
+
+    // animate entry
+    nEnter.select("rect").transition().duration(NODE_DUR).style("opacity",1);
+    nEnter.select("text").transition().delay(30).duration(NODE_DUR).style("opacity",1);
+
+    const nMerge=nEnter.merge(nSel);
+    nMerge.transition().duration(NODE_DUR)
+      .attr("transform",d=>`translate(${d.screenY},${d.screenX})`);
+
+    nSel.exit().transition().duration(NODE_DUR).style("opacity",0).remove();
+
+    // --- Links ---
+    const lSel=linkLayer.selectAll("path.link").data(links, d=>d.target.data.ID);
+
+    const lEnter=lSel.enter().append("path").attr("class","link")
+      .attr("d",d=>curve(src,src))
+      .style("stroke-dasharray",function(){
+        const L=this.getTotalLength?.()||0; return `${L} ${L}`;
+      })
+      .style("stroke-dashoffset",function(){
+        return this.getTotalLength?.()||0;
+      });
+
+    lEnter.merge(lSel)
+      .transition().duration(LINK_DUR)
+      .attr("d",d=>curve(d.source,d.target))
+      .style("stroke-dashoffset",0);
+
+    lSel.exit().transition().duration(LINK_DUR).style("opacity",0).remove();
+
+    nodes.forEach(d=>{ d.x0=d.screenX; d.y0=d.screenY; });
+  }
+
+  function curve(s,d){
+    const sx=s.screenY, sy=s.screenX;
+    const tx=d.screenY, ty=d.screenX;
+    const dx=(tx-sx)*0.55;
+    return `M ${sx},${sy} C ${sx+dx},${sy}, ${tx-dx},${ty}, ${tx},${ty}`;
+  }
+
+  // --------------------------
+  // SEARCH ENGINE
+  // --------------------------
+  function buildSearch(nodes){
+    const idx=nodes.map(n=>({id:n.data.ID,name:n.data.Name,node:n}));
+
+    search.oninput = ()=>{
+      const q=search.value.trim().toLowerCase();
+      if(!q){ suggestions.style.display="none"; return; }
+
+      const m=idx.filter(x=>x.name.toLowerCase().includes(q)||x.id.toLowerCase().includes(q)).slice(0,20);
+
+      if(m.length===0){
+        suggestions.innerHTML="<div class='suggest-item'>No matches</div>";
+        suggestions.style.display="block";
+        return;
+      }
+
+      suggestions.innerHTML = m.map(x=>`
+        <div class="suggest-item" data-id="${x.id}">
+          <strong>${x.name}</strong><br><span style="font-size:12px;color:#666">${x.id}</span>
+        </div>`).join("");
+
+      suggestions.style.display="block";
+
+      document.querySelectorAll(".suggest-item").forEach(el=>{
+        el.onclick=()=>{
+          const id=el.getAttribute("data-id");
+          const hit=idx.find(x=>x.id===id);
+          if(hit) jumpTo(hit.node);
+          suggestions.style.display="none";
+        };
+      });
+    };
+
+    search.onkeydown=e=>{
+      if(e.key==="Enter"){
+        const q=search.value.trim().toLowerCase();
+        const hit=idx.find(x=>x.name.toLowerCase().includes(q)||x.id.toLowerCase().includes(q));
+        if(hit) jumpTo(hit.node);
+        suggestions.style.display="none";
+      }
+    };
+
+    document.addEventListener("click",e=>{
+      if(!searchWrap.contains(e.target)) suggestions.style.display="none";
+    });
+  }
+
+  function jumpTo(d){
+    let cur=d, stack=[];
+    while(cur.parent){
+      if(cur.parent._children) stack.push(cur.parent);
+      cur=cur.parent;
+    }
+    stack.reverse().forEach(p=>{ p.children=p._children; p._children=null; });
+
+    update(d);
+
+    setTimeout(()=>{
+      const gNode=nodeLayer.selectAll("g.node").filter(nd=>nd.data.ID===d.data.ID);
+      if(gNode.empty()) return;
+      const box=gNode.node().getBBox();
+      const cx=box.x+box.width/2;
+      const cy=box.y+box.height/2;
+      const scale=Math.min(1.6,Math.max(0.6, Math.min(W()/(box.width*6), H()/(box.height*6))));
+      const tx=(W()/2)-cx*scale;
+      const ty=(H()/2)-cy*scale;
+
+      svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(scale));
+
+      gNode.select("rect").classed("highlight",true);
+      setTimeout(()=>gNode.select("rect").classed("highlight",false),1200);
+    }, NODE_DUR+30);
+  }
+
+  // --------------------------
+  // AUTO-FIT (initial only)
+  // --------------------------
+  function fit(){
+    try{
+      const full=nodeLayer.node().getBBox();
+      const marg=60;
+      const scale=Math.min((W()-marg)/full.width,(H()-marg)/full.height);
+      const s=Math.max(0.25,Math.min(scale,1.8));
+      const tx=(W()-full.width*s)/2 - full.x*s;
+      const ty=(H()-full.height*s)/2 - full.y*s;
+
+      svg.call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(s));
+    }catch(e){
+      console.warn("fit error",e);
+    }
+  }
+
+});
+</script>
+</body>
+</html>
