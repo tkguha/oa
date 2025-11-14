@@ -7,179 +7,199 @@
 <script src="https://d3js.org/d3.v7.min.js"></script>
 
 <style>
-  body{margin:0;font-family:Segoe UI,Arial;background:#f4f6fa;}
-  header{
-    background:#0b63b6;color:white;
-    padding:15px;text-align:center;
-    font-size:22px;font-weight:600;
+  :root{
+    --bg:#f4f6fa;
+    --header-bg:#08306b;
+    --font: "Segoe UI", Roboto, Arial, sans-serif;
   }
-  #canvas{height:calc(100vh - 60px);position:relative;}
-  svg{width:100%;height:100%;cursor:grab;}
+  html,body{height:100%;margin:0;font-family:var(--font);background:var(--bg)}
+  header{background:var(--header-bg);color:#fff;padding:14px 18px;text-align:center;font-size:20px;font-weight:700}
+  #canvas{height:calc(100vh - 56px);position:relative;overflow:hidden}
+  svg{width:100%;height:100%;cursor:grab;display:block}
 
-  .node text{font-size:14px;pointer-events:none;}
-  .node rect{
-    rx:10;ry:10;stroke-width:2;
-    filter:drop-shadow(0 1px 2px rgba(0,0,0,0.15));
-  }
+  .node text{font-size:14px;pointer-events:none}
+  .node rect{rx:10;ry:10;stroke-width:2;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.12))}
 
-  .link{fill:none;stroke:#bfbfbf;stroke-width:2;}
-
-  .end-dot{
-    fill:#d32f2f;stroke:#b00000;stroke-width:1.5;
-  }
+  .link{fill:none;stroke:#cfcfcf;stroke-width:2}
 
   .tooltip{
-    position:absolute;display:none;
-    background:rgba(0,0,0,0.85);color:white;
-    padding:8px 12px;border-radius:6px;
-    max-width:300px;font-size:13px;
-    z-index:100;
+    position:absolute;display:none;background:rgba(0,0,0,0.85);color:#fff;
+    padding:8px 12px;border-radius:6px;max-width:320px;font-size:13px;z-index:120;
   }
 
   #legend{
-    position:absolute;left:15px;top:15px;
-    background:white;padding:10px;border-radius:8px;
-    box-shadow:0 2px 8px rgba(0,0,0,0.1);
-    font-size:13px;z-index:20;
+    position:absolute;left:14px;top:14px;background:white;padding:8px 10px;border-radius:8px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.08);font-size:13px;z-index:110;
   }
 
-  #fitBtn{
-    position:absolute;right:15px;top:15px;
-    background:white;border:1px solid #cbd3dd;
-    padding:8px 12px;border-radius:6px;
-    cursor:pointer;font-size:13px;
-    box-shadow:0 1px 4px rgba(0,0,0,0.15);
-    z-index:20;
+  /* Search box (top-right) */
+  #searchWrap{
+    position:absolute;right:16px;top:12px;z-index:150;
   }
+  #search{
+    width:300px;padding:8px 10px;border-radius:8px;border:1px solid #cfd8e3;font-size:14px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.06);
+  }
+  #suggestions{
+    position:absolute;right:0;top:40px;background:#fff;border:1px solid #e6e9ef;border-radius:6px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.08);max-height:220px;overflow:auto;width:300px;font-size:14px;
+  }
+  .suggest-item{padding:8px 10px;cursor:pointer}
+  .suggest-item:hover{background:#f1f5fb}
+
+  .highlight {
+    filter: drop-shadow(0 0 8px rgba(255,215,64,0.9));
+    transition: filter 400ms ease;
+  }
+
+  .end-dot{fill:#d32f2f;stroke:#b00000;stroke-width:1.5}
 </style>
 </head>
-
 <body>
 <header>Open Access & Open Science</header>
 
 <div id="canvas">
   <div id="legend">
-    NEHU DLISc Workshop<br>
-    Presented on 22.11.2025<br>
-    Author: <br> Dr. Tamal Kumar Guha </br>
+    Click → open URL &nbsp;•&nbsp; Double-click → expand/collapse &nbsp;•&nbsp; Hover → details
   </div>
 
-  <button id="fitBtn">Fit to View</button> 
+  <div id="searchWrap">
+    <input id="search" placeholder="Search nodes by name or ID..." autocomplete="off" />
+    <div id="suggestions" style="display:none"></div>
+  </div>
 
   <div id="tooltip" class="tooltip"></div>
   <svg></svg>
 </div>
 
-
 <script>
-// ----------------------------------
+// ===========================
 // CONFIG
-// ----------------------------------
-const CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vQtE2jkMXdOlWaUrLFglbi5PH7hwvN0H7wV-A3EEZrQjZFLhI_d0AA1_nN-I9YrXXlmwzgolneWo8Uk/pub?gid=0&single=true&output=csv";
-
+// ===========================
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQtE2jkMXdOlWaUrLFglbi5PH7hwvN0H7wV-A3EEZrQjZFLhI_d0AA1_nN-I9YrXXlmwzgolneWo8Uk/pub?gid=0&single=true&output=csv";
 const ROOT_ID = "1";
 const LEFT_COUNT = 2;
 
-// compact layout
-const VERT_SPACING = 60;
-const DEPTH_SPACING = 200;
+// layout (compact, responsive)
+const VERT_SPACING = 40;   // vertical spacing between nodes (reduced)
+const DEPTH_SPACING = 140; // horizontal spacing per depth
 
-// colors
-const fills  = ["#08306b","#e3f2fd","#fff3e0","#e8f5e9","#f3e8ff","#fff5f5"];
-const strokes=["#08306b","#2b6cb0","#fb8c00","#2e7d32","#6a1b9a","#c62828"];
+// transition durations (fast)
+const NODE_DUR = 180;     // ms
+const LINK_DUR = 180;
 
+// Branch base colors (B: balanced placement)
+// Left: Branch1 (blue), Branch2 (green)
+// Right: Branch3 (orange), Branch4 (purple)
+const BRANCH_BASE = [
+  "#1976d2", // branch 1 - blue (left)
+  "#2e7d32", // branch 2 - green (left)
+  "#fb8c00", // branch 3 - orange (right)
+  "#6a1b9a"  // branch 4 - purple (right)
+];
 
-// ----------------------------------
-// SVG + ZOOM
-// ----------------------------------
+// Root color
+const ROOT_FILL = "#08306b";
+const ROOT_STROKE = "#08306b";
+
+// ===========================
+// SETUP SVG + ZOOM
+// ===========================
 const svg = d3.select("svg");
 const g = svg.append("g");
 const tooltip = d3.select("#tooltip");
 
-const zoom = d3.zoom()
-  .scaleExtent([0.2,3])
-  .on("zoom", e => g.attr("transform", e.transform));
-
+const zoom = d3.zoom().scaleExtent([0.25, 3]).on("zoom", (e)=> g.attr("transform", e.transform));
 svg.call(zoom);
 
-document.getElementById("fitBtn").onclick = () => fitToContent();
+// helper to get size
+const fullW = () => svg.node().clientWidth;
+const fullH = () => svg.node().clientHeight;
 
+// search UI
+const searchInput = document.getElementById("search");
+const suggestionsBox = document.getElementById("suggestions");
 
-// ----------------------------------
-// LOAD CSV
-// ----------------------------------
+// ===========================
+// LOAD CSV & BUILD TREE
+// ===========================
 d3.csv(CSV_URL).then(raw => {
 
-  // normalize rows
-  raw = raw.map(r => ({
-    ID: String(r.ID || "").trim(),
-    Name: (r.Name || r.NAMES || "").trim(),
-    ParentID: String(r.ParentID || "").trim(),
-    PhotoURL: (r.PhotoURL || "").trim(),
-    Details: (r.Details || "").trim()
-  }));
-
-  // build map
-  const map = new Map();
-  raw.forEach(r => {
-    if(r.ID) map.set(r.ID, {...r, children:[]});
+  // normalize rows (robust)
+  raw = raw.map(r => {
+    const keys = {};
+    Object.keys(r).forEach(k=> keys[k.trim().toLowerCase()] = (r[k]||"").trim());
+    return {
+      ID: String(keys.id || keys['id'] || keys.key || "").trim(),
+      Name: (keys.name || keys.names || keys.title || "").trim(),
+      ParentID: String(keys.parentid || keys.parent || "").trim(),
+      PhotoURL: (keys.photourl || keys.photo || keys.url || "").trim(),
+      Details: (keys.details || keys.description || keys.desc || "").trim()
+    };
   });
+
+  // create map and nodes
+  const map = new Map();
+  raw.forEach(r => { if(r.ID) map.set(r.ID, {...r, children: []}); });
 
   // attach children
   map.forEach(node => {
-    if(node.ParentID && map.has(node.ParentID)){
-      map.get(node.ParentID).children.push(node);
-    }
+    if(node.ParentID && map.has(node.ParentID)) map.get(node.ParentID).children.push(node);
   });
 
-  // root
+  // root check
   if(!map.has(ROOT_ID)){
-    alert("Root ID not found.");
+    alert("ERROR: Root ID " + ROOT_ID + " not found in sheet.");
     return;
   }
-
   const rootNode = map.get(ROOT_ID);
 
-  // attach orphan top-level nodes under root
+  // attach orphan top-level nodes under root (if any)
   raw.forEach(r => {
-    if(!r.ParentID && r.ID !== ROOT_ID){
+    if(!r.ParentID && r.ID !== ROOT_ID && map.has(r.ID) && !rootNode.children.some(c=>c.ID===r.ID)) {
       rootNode.children.push(map.get(r.ID));
     }
   });
 
-  const root = d3.hierarchy(rootNode, d => d.children.length ? d.children : null);
-  root.x0 = 0;
-  root.y0 = 0;
+  // build d3.hierarchy
+  const root = d3.hierarchy(rootNode, d => d.children && d.children.length ? d.children : null);
+  root.x0 = 0; root.y0 = 0;
 
-  // assign left/right
+  // assign branch indices & side for first-level children
   if(root.children){
     root.children.forEach((c,i)=>{
-      const side = (i < LEFT_COUNT ? -1 : 1);
-      assignSide(c, side);
+      const branchIndex = i % 4; // order remains from sheet; map palette to first 4
+      const side = (i < LEFT_COUNT) ? -1 : 1;
+      assignBranch(c, branchIndex, side);
     });
   }
 
-  // collapse all
+  // collapse all initially
   root.children?.forEach(collapseAll);
+  // expand first-level for visibility
+  root.children?.forEach(c=>{ c.children = c._children; c._children = null; });
 
-  // expand first level
-  root.children?.forEach(c => { c.children = c._children; c._children = null; });
+  // populate search index
+  const allNodes = [];
+  root.each(d => { allNodes.push(d); });
 
+  buildSearchIndex(allNodes);
+
+  // render once
   update(root);
 
-  // auto-fit once on load
-  setTimeout(() => fitToContent(), 500);
+  // auto-fit to content on initial load only
+  setTimeout(()=> fitToContent(), 500);
 
+  // =================================================
+  // Helper functions
+  // =================================================
 
-  // ----------------------------------
-  // FUNCTIONS
-  // ----------------------------------
-
-  function assignSide(node, side){
+  function assignBranch(node, branchIndex, side){
+    node.data._branchIndex = branchIndex;
     node.data._side = side;
-    node.children?.forEach(c => assignSide(c, side));
-    node._children?.forEach(c => assignSide(c, side));
+    node.children?.forEach(c => assignBranch(c, branchIndex, side));
+    node._children?.forEach(c => assignBranch(c, branchIndex, side));
   }
 
   function collapseAll(node){
@@ -190,154 +210,283 @@ d3.csv(CSV_URL).then(raw => {
     }
   }
 
+  // compute color by branch + depth (lighter with depth)
+  function colorFor(node){
+    if(node.depth === 0) return {fill: ROOT_FILL, stroke: ROOT_STROKE};
+    const branchIndex = node.data._branchIndex ?? (node.parent ? node.parent.data._branchIndex ?? 0 : 0);
+    const base = BRANCH_BASE[branchIndex % BRANCH_BASE.length];
+    // interpolate towards white for deeper nodes
+    const t = Math.min(node.depth / 5, 0.6); // deeper -> lighter up to 60%
+    const fill = d3.interpolateRgb(base, "#ffffff")(t);
+    const stroke = d3.interpolateRgb(base, d3.color(base).darker(1))(0.15);
+    return {fill, stroke};
+  }
 
-  // UPDATE FUNCTION
+  // =========================
+  // UPDATE (nodes+links)
+  // =========================
   function update(source){
-
-    const layout = d3.tree().nodeSize([VERT_SPACING,100]);
-    const treeData = layout(root);
+    const treeLayout = d3.tree().nodeSize([VERT_SPACING, 100]);
+    const treeData = treeLayout(root);
     const nodes = treeData.descendants();
     const links = treeData.links();
 
+    // compute screen positions
     nodes.forEach(d=>{
-      const side = d.data._side !== undefined ?
-                   d.data._side :
-                   (d.parent ? d.parent.data._side || 1 : 1);
-
+      const side = d.data._side !== undefined ? d.data._side : (d.parent ? d.parent.data._side || 1 : 1);
       d.screenX = d.x;
       d.screenY = d.depth * DEPTH_SPACING * side;
     });
 
-    // --- NODES ---
-    const node = g.selectAll("g.node").data(nodes, d=>d.data.ID);
+    // ----- NODES -----
+    const nodeSel = g.selectAll("g.node").data(nodes, d=>d.data.ID);
 
-    const enter = node.enter().append("g")
+    const nodeEnter = nodeSel.enter().append("g")
       .attr("class","node")
-      .attr("transform",`translate(${source.y0},${source.x0})`)
+      .attr("transform", `translate(${source.y0 || 0},${source.x0 || 0})`)
       .style("cursor","pointer")
-      .on("click",(e,d)=>{
-        if(d.data.PhotoURL) window.open(d.data.PhotoURL,"_blank");
-      })
-      .on("dblclick",(e,d)=>{
-        e.stopPropagation();
-        if(d.children){ d._children=d.children; d.children=null; }
-        else{ d.children=d._children; d._children=null; }
-        update(d);
-      })
-      .on("mouseover",(e,d)=>{
-        if(d.data.Details){
-          tooltip.style("display","block").html(d.data.Details);
+      .on("click", (e,d)=>{
+        // single click: open PhotoURL if present
+        if(d.data.PhotoURL && d.data.PhotoURL.length){
+          window.open(d.data.PhotoURL, "_blank", "noopener");
+          return;
         }
       })
-      .on("mousemove",(e)=>{
-        tooltip.style("left",(e.pageX+12)+"px")
-               .style("top",(e.pageY+12)+"px");
+      .on("dblclick", (e,d)=>{
+        e.stopPropagation();
+        // toggle children
+        if(d.children){ d._children = d.children; d.children = null; }
+        else{ d.children = d._children; d._children = null; }
+        // animate
+        update(d);
       })
-      .on("mouseout",()=>tooltip.style("display","none"));
+      .on("mouseover", (e,d)=>{
+        if(d.data.Details) tooltip.style("display","block").html(d.data.Details);
+      })
+      .on("mousemove", (e)=>{
+        tooltip.style("left",(e.pageX+12) + "px").style("top",(e.pageY+12)+"px");
+      })
+      .on("mouseout", ()=> tooltip.style("display","none"));
 
-    enter.append("text")
+    // text first
+    nodeEnter.append("text")
       .attr("dy","0.35em")
       .attr("text-anchor","middle")
-      .text(d=>d.data.Name);
+      .text(d => d.data.Name || d.data.ID || "(no name)")
+      .style("opacity",0);
 
-    enter.each(function(d){
+    // rect behind text + styling
+    nodeEnter.each(function(d){
       const sel = d3.select(this);
-      const t = sel.select("text").node();
-      const bb = t.getBBox();
+      const textNode = sel.select("text").node();
+      const bbox = textNode.getBBox();
+      const padX = 12, padY = 8;
+      const w = Math.max(80, bbox.width + padX*2);
+      const h = bbox.height + padY*2;
 
-      const padX=14,padY=8;
-      const w = bb.width + padX*2;
-      const h = bb.height + padY*2;
-      const depthIndex = Math.min(d.depth, fills.length-1);
-
-      sel.insert("rect","text")
+      const c = colorFor(d);
+      sel.insert("rect", "text")
         .attr("x",-w/2).attr("y",-h/2)
-        .attr("width",w).attr("height",h)
-        .style("fill", d.depth===0 ? fills[0] : fills[depthIndex])
-        .style("stroke", strokes[depthIndex]);
+        .attr("width", w).attr("height", h)
+        .style("fill", c.fill)
+        .style("stroke", c.stroke)
+        .style("opacity", 0)
+        .attr("rx",10).attr("ry",10);
 
-      if(d.depth===0){
-        sel.select("text").style("fill","white").style("font-weight","700");
+      // root special
+      if(d.depth === 0){
+        sel.select("rect").style("fill", ROOT_FILL).style("stroke", ROOT_STROKE);
+        sel.select("text").style("fill","#fff").style("font-weight","700");
+      } else {
+        sel.select("text").style("fill", "#071126");
       }
 
-      const side = d.data._side || (d.parent ? d.parent.data._side || 1 : 1);
+      // end dot (positioned after rect width)
+      const side = d.data._side !== undefined ? d.data._side : (d.parent ? d.parent.data._side || 1 : 1);
       sel.append("circle")
         .attr("class","end-dot")
-        .attr("r",5)
-        .attr("cx", side>=0 ? w/2+10 : -(w/2+10))
+        .attr("r",6)
+        .attr("cx", side >= 0 ? (w/2 + 10) : -(w/2 + 10))
         .attr("cy", 0)
-        .style("opacity",(!d.children && !d._children)?1:0);
+        .style("opacity", (!d.children && !d._children) ? 1 : 0)
+        .style("transform-origin","center");
     });
 
-    const merged = enter.merge(node);
+    // animate node enter (scale & fade)
+    nodeEnter.select("rect")
+      .transition().duration(NODE_DUR)
+      .style("opacity",1);
 
-    merged.transition().duration(450)
-      .attr("transform",d=>`translate(${d.screenY},${d.screenX})`);
+    nodeEnter.select("text")
+      .transition().delay(30).duration(NODE_DUR)
+      .style("opacity",1);
 
-    node.exit().transition().duration(300).style("opacity",0).remove();
+    // apply merge and position
+    const nodeMerge = nodeEnter.merge(nodeSel);
 
+    nodeMerge.transition().duration(NODE_DUR)
+      .attr("transform", d => `translate(${d.screenY},${d.screenX})`);
 
-    // --- LINKS ---
-    const link = g.selectAll("path.link").data(links, d=>d.target.data.ID);
+    // update end-dot visibility on merge
+    nodeMerge.select("circle.end-dot")
+      .transition().duration(NODE_DUR)
+      .style("opacity", d => (!d.children && !d._children) ? 1 : 0);
 
-    link.enter()
-      .insert("path","g")
+    // exit
+    nodeSel.exit()
+      .transition().duration(NODE_DUR)
+      .style("opacity",0)
+      .remove();
+
+    // ----- LINKS -----
+    const linkSel = g.selectAll("path.link").data(links, d => d.target.data.ID);
+
+    // enter with draw animation using stroke-dasharray
+    const linkEnter = linkSel.enter().append("path")
       .attr("class","link")
-      .attr("d",_=>mindCurve(source,source))
-      .merge(link)
-      .transition().duration(450)
-      .attr("d",d=>mindCurve(d.source,d.target));
+      .attr("d", d => mindCurve(source, source))
+      .style("stroke-dasharray", function(){
+        return this.getTotalLength ? (this.getTotalLength() + " " + this.getTotalLength()) : "0 1000";
+      })
+      .style("stroke-dashoffset", function(){
+        return this.getTotalLength ? this.getTotalLength() : 0;
+      });
 
-    link.exit().transition().duration(300).style("opacity",0).remove();
+    // merge + transition to final path + animate dashoffset
+    linkEnter.merge(linkSel)
+      .transition().duration(LINK_DUR)
+      .attr("d", d => mindCurve(d.source, d.target))
+      .style("stroke-dashoffset", 0);
 
+    // exit
+    linkSel.exit().transition().duration(LINK_DUR).style("opacity",0).remove();
 
-    nodes.forEach(d=>{ d.x0=d.screenX; d.y0=d.screenY; });
+    // save positions
+    nodes.forEach(d => { d.x0 = d.screenX; d.y0 = d.screenY; });
   }
 
-
-  // mind-map style S-curve
-  function mindCurve(s,d){
-    const sx=s.screenY, sy=s.screenX;
-    const tx=d.screenY, ty=d.screenX;
-    const dx=(tx-sx)*0.55;
-
-    return `
-      M ${sx},${sy}
-      C ${sx+dx},${sy},
-        ${tx-dx},${ty},
-        ${tx},${ty}
-    `;
+  // S-shaped mindmap curve
+  function mindCurve(s, d){
+    const sx = s.screenY, sy = s.screenX;
+    const tx = d.screenY, ty = d.screenX;
+    const dx = (tx - sx) * 0.55;
+    return `M ${sx},${sy} C ${sx+dx},${sy}, ${tx-dx},${ty}, ${tx},${ty}`;
   }
 
+  // ===========================
+  // SEARCH (autocomplete + jump)
+  // ===========================
+  function buildSearchIndex(nodes){
+    const items = nodes.map(n => ({ id: n.data.ID, name: n.data.Name, node: n }));
+    // simple client-side search on input
+    searchInput.addEventListener("input", (e) => {
+      const q = e.target.value.trim().toLowerCase();
+      if(!q){
+        suggestionsBox.style.display = "none";
+        suggestionsBox.innerHTML = "";
+        return;
+      }
+      const matches = items.filter(it => (it.name && it.name.toLowerCase().includes(q)) || (it.id && it.id.toLowerCase().includes(q)));
+      const first20 = matches.slice(0, 20);
+      if(first20.length === 0){
+        suggestionsBox.innerHTML = "<div class='suggest-item'>No matches</div>";
+        suggestionsBox.style.display = "block";
+        return;
+      }
+      suggestionsBox.innerHTML = first20.map(m => `<div class='suggest-item' data-id="${m.id}"><strong>${m.name || m.id}</strong><div style="color:#666;font-size:12px">${m.id}</div></div>`).join("");
+      suggestionsBox.style.display = "block";
+      // attach click handlers
+      Array.from(suggestionsBox.querySelectorAll(".suggest-item")).forEach(el=>{
+        el.onclick = () => {
+          const id = el.getAttribute("data-id");
+          const match = items.find(x=>x.id === id);
+          if(match) focusOnNode(match.node);
+          suggestionsBox.style.display = "none";
+        };
+      });
+    });
 
-  // manual fit-to-content (only runs on load or when clicking button)
+    // Enter key -> jump to first match
+    searchInput.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter"){
+        e.preventDefault();
+        const q = searchInput.value.trim().toLowerCase();
+        if(!q) return;
+        const m = items.find(it => (it.name && it.name.toLowerCase().includes(q)) || (it.id && it.id.toLowerCase().includes(q)));
+        if(m) focusOnNode(m.node);
+        suggestionsBox.style.display = "none";
+      }
+      if(e.key === "Escape"){
+        suggestionsBox.style.display = "none";
+      }
+    });
+
+    // click outside -> hide
+    document.addEventListener("click", (ev)=>{
+      if(!document.getElementById("searchWrap").contains(ev.target)) suggestionsBox.style.display = "none";
+    });
+  }
+
+  // highlight and center a node
+  function focusOnNode(dNode){
+    // expand ancestors
+    let current = dNode;
+    const toExpand = [];
+    while(current.parent){
+      if(current.parent._children) toExpand.push(current.parent);
+      current = current.parent;
+    }
+    // expand necessary ancestors
+    toExpand.reverse().forEach(n => {
+      n.children = n._children; n._children = null;
+    });
+    update(dNode);
+    // brief delay for layout to update
+    setTimeout(()=>{
+      // compute node bbox in g coordinates
+      const nodeElems = g.selectAll("g.node").filter(nd => nd.data.ID === dNode.data.ID);
+      if(nodeElems.empty()) return;
+      const nodeEl = nodeElems.node();
+      const nodeBox = nodeEl.getBBox();
+      // compute center of node (in g-coordinates)
+      const cx = nodeBox.x + nodeBox.width / 2;
+      const cy = nodeBox.y + nodeBox.height / 2;
+      // compute desired scale and translate (zoom to ~1.2x size)
+      const viewportW = fullW();
+      const viewportH = fullH();
+      const scale = Math.min(1.8, Math.max(0.6, Math.min(viewportW / (nodeBox.width * 6), viewportH / (nodeBox.height * 6))));
+      const tx = (viewportW / 2) - cx * scale;
+      const ty = (viewportH / 2) - cy * scale;
+      svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(scale));
+      // highlight glow
+      nodeElems.select("rect").classed("highlight", true);
+      setTimeout(()=> nodeElems.select("rect").classed("highlight", false), 1400);
+    }, NODE_DUR + 40);
+  }
+
+  // ===========================
+  // FIT TO CONTENT (initial only)
+  // ===========================
   function fitToContent(){
-    const box = g.node().getBBox();
-    const margin = 40;
-
-    const fullW = svg.node().clientWidth;
-    const fullH = svg.node().clientHeight;
-
-    const scale = Math.min(
-      (fullW - margin)/box.width,
-      (fullH - margin)/box.height
-    );
-
-    const tx = (fullW - box.width*scale)/2 - box.x*scale;
-    const ty = (fullH - box.height*scale)/2 - box.y*scale;
-
-    svg.transition()
-      .duration(600)
-      .call(
-        zoom.transform,
-        d3.zoomIdentity.translate(tx,ty).scale(scale)
-      );
+    // compute bbox of rendered nodes (g coords)
+    try {
+      const box = g.node().getBBox();
+      const margin = 60;
+      const vw = fullW();
+      const vh = fullH();
+      const scale = Math.min((vw - margin) / box.width, (vh - margin) / box.height);
+      const finalScale = Math.max(0.25, Math.min(scale, 1.8));
+      const tx = (vw - box.width * finalScale) / 2 - box.x * finalScale;
+      const ty = (vh - box.height * finalScale) / 2 - box.y * finalScale;
+      svg.transition().duration(600).call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(finalScale));
+    } catch(e) {
+      // sometimes getBBox fails early; ignore
+      console.warn("fitToContent error:", e);
+    }
   }
 
-});
-</script>
+}); // end csv load
 
+</script>
 </body>
 </html>
-
-
