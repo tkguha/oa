@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Open Access & Open Science</title>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#f5f7fb;
+      --header-bg:#0b63b6; /* darker blue for header */
+      --header-color:#fff;
+      --font: "Segoe UI", Roboto, Arial, sans-serif;
+    }
+    html,body{height:100%; margin:0; padding:0; font-family:var(--font); background:var(--bg);}
+    header{
+      background:var(--header-bg);
+      color:var(--header-color);
+      padding:14px 18px;
+      font-size:20px;
+      font-weight:600;
+      text-align:center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+      z-index:3;
+    }
+    #canvas {
+      width:100%;
+      height: calc(100vh - 64px);
+      position:relative;
+      overflow:hidden;
+    }
+    svg { width:100%; height:100%; cursor: grab; display:block; }
+
+    .link {
+      fill: none;
+      stroke: #cfcfcf;
+      stroke-width: 2px;
+    }
+
+    .node text {
+      font-size: 14px;
+      pointer-events: none;
+      fill: #0b1b2b;
+    }
+
+    .node rect {
+      rx:10;
+      ry:10;
+      stroke-width:2px;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.12));
+    }
+
+    .tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: rgba(0,0,0,0.85);
+      color: #fff;
+      padding:8px 10px;
+      font-size:13px;
+      border-radius:6px;
+      max-width:320px;
+      line-height:1.4;
+      z-index: 10;
+    }
+
+    .end-dot {
+      stroke: #b00000;
+      fill: #d32f2f;
+    }
+
+    /* small legend / instructions */
+    #legend {
+      position: absolute;
+      left: 12px;
+      top: 12px;
+      background: rgba(255,255,255,0.95);
+      padding:8px 10px;
+      border-radius:8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      font-size:13px;
+      z-index: 4;
+    }
+    #legend a { color:#0b63b6; text-decoration: none; font-weight:600; }
+  </style>
+</head>
+<body>
+  <header>Open Access & Open Science</header>
+
+  <div id="canvas">
+    <div id="legend">
+      Click node → open PhotoURL (if present).<br>
+      Double-click node → expand/collapse.<br>
+      Hover → show details.
+    </div>
+    <div id="tooltip" class="tooltip" style="display:none;"></div>
+    <svg></svg>
+  </div>
+
+<script>
+(function(){
+  // === CONFIG ===
+  const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQtE2jkMXdOlWaUrLFglbi5PH7hwvN0H7wV-A3EEZrQjZFLhI_d0AA1_nN-I9YrXXlmwzgolneWo8Uk/pub?gid=0&single=true&output=csv";
+  const rootCenterX = window.innerWidth / 2;
+  const rootCenterY = window.innerHeight / 2; // used for initial transform
+  const depthSpacing = 220; // horizontal spacing per depth
+  const verticalNodeSpacing = 70; // spacing in tree layout for vertical axis
+  const duration = 500;
+
+  // Colors per depth (index 0 is root)
+  const depthColors = [
+    "#08306b", // root dark blue
+    "#dbeefe", // depth 1
+    "#fff3e0", // depth 2
+    "#e8f5e9", // depth 3
+    "#f3e8ff", // depth 4
+    "#fff5f5"  // depth 5+
+  ];
+  // stroke color per depth
+  const depthStrokes = [
+    "#08306b",
+    "#2b6cb0",
+    "#fb8c00",
+    "#2e7d32",
+    "#6a1b9a",
+    "#c62828"
+  ];
+
+  // === SETUP SVG + ZOOM ===
+  const svg = d3.select("svg");
+  const width = () => svg.node().clientWidth;
+  const height = () => svg.node().clientHeight;
+
+  const g = svg.append("g").attr("class","root-g");
+
+  const zoom = d3.zoom()
+    .scaleExtent([0.2, 3])
+    .on("zoom", (event) => g.attr("transform", event.transform));
+
+  svg.call(zoom);
+
+  // Tooltip
+  const tooltip = d3.select("#tooltip");
+
+  // tree layout used for vertical positions (x)
+  const treeLayout = d3.tree().nodeSize([verticalNodeSpacing, 1]); // y is later set manually
+
+  // Load CSV and build tree
+  d3.csv(csvUrl).then(rawData => {
+    if (!rawData || rawData.length === 0) {
+      console.error("No data loaded from sheet.");
+      return;
+    }
+
+    // Normalize header names: allow "Name" or "NAMES" etc.
+    const data = rawData.map(d=>{
+      const normalized = {};
+      // copy all fields trimmed
+      Object.keys(d).forEach(k => normalized[k.trim()] = d[k].trim());
+      // canonical fields
+      const ID = normalized.ID || normalized.Id || normalized.id || normalized['Id'] || Object.keys(normalized).find(k=>k.toLowerCase()==='id') || Object.keys(normalized)[0];
+      const NAMEKEY = Object.keys(normalized).find(k => ['name','names','title','label'].includes(k.toLowerCase())) || Object.keys(normalized)[1] || Object.keys(normalized)[0];
+      const PARENTKEY = Object.keys(normalized).find(k => ['parentid','parent','parent id','parent_id'].includes(k.toLowerCase())) || Object.keys(normalized).find(k => k.toLowerCase().includes('parent')) || null;
+      const PHOTOKEY = Object.keys(normalized).find(k => ['photourl','photo','url','image','imageurl'].includes(k.toLowerCase())) || Object.keys(normalized).find(k=>k.toLowerCase().includes('url')) || null;
+      const DETAILSKEY = Object.keys(normalized).find(k => ['details','description','desc','info','note'].includes(k.toLowerCase())) || Object.keys(normalized).find(k=>k.toLowerCase().includes('detail')) || null;
+
+      return {
+        ID: normalized[ID] ?? '',
+        Name: normalized[NAMEKEY] ?? '',
+        ParentID: PARENTKEY ? (normalized[PARENTKEY] ?? '') : '',
+        PhotoURL: PHOTOKEY ? (normalized[PHOTOKEY] ?? '') : '',
+        Details: DETAILSKEY ? (normalized[DETAILSKEY] ?? '') : ''
+      };
+    });
+
+    // Build maps
+    const idSet = new Set(data.map(d => d.ID));
+    const parentSet = new Set(data.map(d => d.ParentID).filter(x=>x && x.length>0));
+
+    // Find root candidates = ids not present in parentSet
+    let rootCandidates = data.filter(d => !parentSet.has(d.ID) && d.ID && d.ID.length>0);
+    // But if many top-level rows (like the 4 nodes user provided), we expect there's a single central root row with no ParentID.
+    // If multiple candidates, prefer the one with no ParentID value.
+    if (rootCandidates.length > 1) {
+      const noParent = data.filter(d => !d.ParentID || d.ParentID.length === 0);
+      if (noParent.length === 1) rootCandidates = noParent;
+    }
+    // Fallback: if still >1, pick the first row that contains "central" or "open access" or else the first row
+    if (rootCandidates.length > 1) {
+      const found = rootCandidates.find(d => /(central|open access|open science|root)/i.test(d.Name));
+      if (found) rootCandidates = [found]; else rootCandidates = [rootCandidates[0]];
+    }
+    // If none found, fallback to first row of sheet
+    let rootRow = rootCandidates.length ? rootCandidates[0] : (data[0] || null);
+    if (!rootRow) {
+      console.error("Could not determine root row.");
+      return;
+    }
+
+    // Convert array to tree (recursively)
+    const dataById = new Map(data.map(d => [d.ID, {...d, children: []}]));
+    // add nodes to parents
+    data.forEach(d=>{
+      const node = dataById.get(d.ID);
+      if (d.ParentID && dataById.has(d.ParentID)) {
+        dataById.get(d.ParentID).children.push(node);
+      }
+    });
+    // actual root node is rootRow.ID — but if there are multiple top-level nodes that are meant to be first-level branches,
+    // we treat rootRow as central concept, and ensure first-level branches are its children. If rootRow has no children but there are other top-level nodes,
+    // we create a synthetic root.
+    let rootNode = dataById.get(rootRow.ID);
+
+    // If other top-level nodes exist that are not children of rootRow, attach them under rootNode if rootNode has empty ParentID and those nodes have no parent
+    const topLevelNodes = data.filter(d => !d.ParentID || d.ParentID.length === 0).map(d=>d.ID);
+    if (topLevelNodes.length > 1 && (!rootNode.children || rootNode.children.length === 0)) {
+      // attach other top-level nodes (except rootRow) as children of rootNode
+      topLevelNodes.forEach(id=>{
+        if (id !== rootNode.ID) {
+          const node = dataById.get(id);
+          if (node) rootNode.children.push(node);
+        }
+      });
+    }
+
+    // Create d3.hierarchy
+    const root = d3.hierarchy(rootNode, d => d.children && d.children.length ? d.children : null);
+    // initial collapse for all children
+    root.x0 = 0;
+    root.y0 = 0;
+    root.children?.forEach(collapseAll);
+
+    // Assign left/right side for first-level children: first two to left (-1), next two to right (+1). If there are more, alternate or place by index.
+    if (root.children && root.children.length) {
+      root.children.forEach((c,i)=>{
+        c.data._side = (i < 2) ? -1 : 1;
+        assignSideToDescendants(c, c.data._side);
+      });
+    }
+
+    // initial layout and transform to center root
+    update(root);
+
+    // Center view
+    const initialScale = 0.9;
+    svg.call(zoom.transform, d3.zoomIdentity.translate(width()/2 - 100, height()/2 - 20).scale(initialScale));
+
+    // Responsive: re-center on resize
+    window.addEventListener("resize", ()=> {
+      svg.call(zoom.transform, d3.zoomIdentity.translate(width()/2 - 100, height()/2 - 20).scale(initialScale));
+    });
+
+    // ---- functions ----
+    function assignSideToDescendants(node, side) {
+      node.data._side = side;
+      if (node.children) node.children.forEach(c => assignSideToDescendants(c, side));
+      if (node._children) node._children.forEach(c => assignSideToDescendants(c, side));
+    }
+
+    function collapseAll(node) {
+      if (node.children) {
+        node._children = node.children;
+        node._children.forEach(collapseAll);
+        node.children = null;
+      }
+    }
+
+    function update(source) {
+      // compute vertical positions with tree layout
+      // we set a large width in y so that treeLayout can compute spacing; actual horizontal (left/right) will be set based on side
+      treeLayout.nodeSize([verticalNodeSpacing, 100]);
+      const treeData = treeLayout(root);
+
+      const nodes = treeData.descendants();
+      const links = treeData.links();
+
+      // set custom y coordinate: center is 0; for nodes, y = side * depthSpacing * depth
+      nodes.forEach(d => {
+        // root at y = 0
+        const side = d.data._side ?? (d.parent ? (d.parent.data._side ?? 1) : 0);
+        d.y = (d.depth === 0) ? 0 : side * d.depth * depthSpacing;
+      });
+
+      // map the vertical x positions to screen coordinates (x)
+      // treeLayout computed d.x values; we'll keep them but center them around 0
+      const minX = d3.min(nodes, d=>d.x);
+      const maxX = d3.max(nodes, d=>d.x);
+      const xRange = maxX - minX || 1;
+
+      // scale to reasonable vertical span
+      const scaleY = (height() - 120) / xRange;
+      nodes.forEach(d => {
+        // compute screen coords relative to center
+        d.screenX = (d.x - (minX + maxX)/2) * scaleY;
+        d.screenY = d.y;
+      });
+
+      // NODES
+      const nodeSel = g.selectAll("g.node").data(nodes, d => d.data.ID);
+
+      // ENTER
+      const nodeEnter = nodeSel.enter()
+        .append("g")
+        .attr("class","node")
+        .attr("transform", d => `translate(${source.y0 || 0},${source.x0 || 0})`)
+        .style("cursor","pointer")
+        .on("click", function(event, d){
+          // single click: if PhotoURL present, open it; else toggle expand/collapse
+          event.stopPropagation();
+          const url = (d.data.PhotoURL && d.data.PhotoURL.length>0) ? d.data.PhotoURL : null;
+          if (url) {
+            // open in new window/tab
+            window.open(url, "_blank", "noopener");
+            return;
+          }
+          // toggle
+          if (d.children) { d._children = d.children; d.children = null; }
+          else { d.children = d._children; d._children = null; }
+          update(d);
+        })
+        .on("dblclick", function(event,d){
+          // double click explicitly toggles expand/collapse regardless of PhotoURL
+          event.stopPropagation();
+          if (d.children) { d._children = d.children; d.children = null; }
+          else { d.children = d._children; d._children = null; }
+          update(d);
+        })
+        .on("mouseover", function(event,d){
+          if (d.data.Details && d.data.Details.length) {
+            tooltip.style("display","block")
+              .html(d.data.Details);
+          }
+        })
+        .on("mousemove", function(event){
+          const [mx,my] = d3.pointer(event, document.body);
+          tooltip.style("left", (mx+14) + "px").style("top", (my+14) + "px");
+        })
+        .on("mouseout", function(){
+          tooltip.style("display","none");
+        });
+
+      // append text first to measure width
+      nodeEnter.append("text")
+        .attr("dy","0.35em")
+        .attr("text-anchor","middle")
+        .text(d => d.data.Name)
+        .each(function(d){
+          // noop — we measure later
+        });
+
+      // after text inserted, measure and insert rect behind
+      nodeEnter.each(function(d){
+        const sel = d3.select(this);
+        const textNode = sel.select("text").node();
+        const bbox = textNode.getBBox();
+        const paddingX = 12, paddingY = 8;
+        const w = bbox.width + paddingX*2;
+        const h = bbox.height + paddingY*2;
+
+        // choose background based on depth
+        const colIndex = Math.min(d.depth, depthColors.length-1);
+        const fill = depthColors[colIndex];
+        const stroke = depthStrokes[colIndex] || "#999";
+
+        sel.insert("rect", "text")
+          .attr("x", -w/2)
+          .attr("y", -h/2)
+          .attr("width", w)
+          .attr("height", h)
+          .attr("rx", 10).attr("ry",10)
+          .style("fill", fill)
+          .style("stroke", stroke)
+          .style("stroke-width", 2);
+
+        // if node is root, override to dark blue with white text
+        if (d.depth === 0) {
+          sel.select("rect")
+            .style("fill", depthColors[0])
+            .style("stroke", depthStrokes[0]);
+          sel.select("text").style("fill", "#fff").style("font-weight","700");
+        }
+      });
+
+      // append end-dot (red) for leaf nodes
+      nodeEnter.append("circle")
+        .attr("class","end-dot")
+        .attr("r", 6)
+        .attr("cx", function(d){
+          // place near right edge of rect for right-side leaves and left edge for left-side leaves
+          // we calculate offset using the rect width
+          const rect = d3.select(this.parentNode).select("rect").node();
+          if (!rect) return 0;
+          const w = +rect.getAttribute("width");
+          const side = d.data._side ?? (d.parent ? d.parent.data._side ?? 1 : 1);
+          return (side >= 0) ? (w/2 + 10) : -(w/2 + 10);
+        })
+        .attr("cy", 0)
+        .style("opacity", d => ( (!d.children && !d._children) ? 1 : 0));
+
+      // UPDATE + ENTER merged
+      const nodeMerge = nodeEnter.merge(nodeSel);
+
+      nodeMerge.transition().duration(duration)
+        .attr("transform", d => `translate(${d.screenY},${d.screenX})`);
+
+      // update end-dot visibility & reposition (for dynamic text width)
+      nodeMerge.selectAll("circle.end-dot").each(function(d){
+        const rect = d3.select(this.parentNode).select("rect").node();
+        if (!rect) return;
+        const w = +rect.getAttribute("width");
+        const side = d.data._side ?? (d.parent ? d.parent.data._side ?? 1 : 1);
+        d3.select(this)
+          .attr("cx", (side >= 0) ? (w/2 + 10) : -(w/2 + 10))
+          .style("opacity", (!d.children && !d._children) ? 1 : 0);
+      });
+
+      // EXIT
+      const nodeExit = nodeSel.exit();
+      nodeExit.transition().duration(duration)
+        .attr("transform", d => `translate(${source.y},${source.x})`)
+        .style("opacity",0)
+        .remove();
+
+      // LINKS
+      // custom curved link between source and target
+      const linkSel = g.selectAll("path.link").data(links, d => d.target.data.ID);
+
+      // enter
+      const linkEnter = linkSel.enter()
+        .insert("path", "g")
+        .attr("class","link")
+        .attr("d", d => {
+          // start from source ancestor position
+          const o = { screenX: source.x0 || 0, screenY: source.y0 || 0 };
+          return diagonal(o, o);
+        });
+
+      // merge + transition
+      linkEnter.merge(linkSel)
+        .transition().duration(duration)
+        .attr("d", d => diagonal(d.source, d.target));
+
+      // remove
+      linkSel.exit().transition().duration(duration).style("opacity",0).remove();
+
+      // Save old positions for transitions
+      nodes.forEach(d => {
+        d.x0 = d.screenX;
+        d.y0 = d.screenY;
+      });
+    }
+
+    // diagonal path generator (cubic Bezier)
+    function diagonal(s, d) {
+      const sourceX = s.screenY !== undefined ? s.screenY : s.y0;
+      const sourceY = s.screenX !== undefined ? s.screenX : s.x0;
+      const targetX = d.screenY !== undefined ? d.screenY : d.y0;
+      const targetY = d.screenX !== undefined ? d.screenX : d.x0;
+      const midX = (sourceX + targetX) / 2;
+      return `M ${sourceX} ${sourceY}
+              C ${midX} ${sourceY},
+                ${midX} ${targetY},
+                ${targetX} ${targetY}`;
+    }
+
+  }).catch(err => {
+    console.error("Error loading CSV:", err);
+  });
+
+})();
+</script>
+
+</body>
+</html>
