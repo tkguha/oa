@@ -1,706 +1,720 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
+<meta charset="UTF-8" />
 <title>Open Access & Open Science — Interactive Mindmap</title>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
   :root {
-    --bg: #f4f6fb;
+    --bg: #f5f7fb;
     --header-bg: #0b63b6;
     --header-fg: #ffffff;
+    --node-text: #102a43;
     --node-bg: #ffffff;
-    --node-stroke: #607d8b;
-    --text: #102a43;
   }
 
-  html, body {
-    margin: 0;
-    height: 100%;
-    font-family: "Segoe UI", Roboto, Arial, sans-serif;
-    background: var(--bg);
-  }
+  * { box-sizing: border-box; }
 
   body {
-    display: flex;
-    flex-direction: column;
+    margin: 0;
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: var(--bg);
   }
 
   header {
     background: var(--header-bg);
     color: var(--header-fg);
-    padding: 10px 16px;
+    padding: 10px 18px;
+    font-size: 20px;
+    font-weight: 600;
+    text-align: center;
     display: flex;
     align-items: center;
-    gap: 16px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.18);
-    z-index: 10;
+    justify-content: center;
+    position: relative;
   }
 
-  header h1 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 600;
-    flex: 1;
-    text-align: center;
-  }
-
-  .toolbar {
+  header .controls {
+    position: absolute;
+    left: 16px;
     display: flex;
     gap: 6px;
   }
 
-  .toolbar button {
-    border: none;
-    border-radius: 999px;
-    padding: 6px 10px;
-    font-size: 12px;
-    cursor: pointer;
-    background: #e3f2fd;
+  header button {
+    border: 1px solid #0b63b6;
+    background: #ffffff;
     color: #0b63b6;
-    font-weight: 500;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.18);
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
   }
-
-  .toolbar button:hover {
-    background: #bbdefb;
+  header button:hover {
+    background:#e3f2fd;
   }
 
   #canvas {
-    flex: 1;
     position: relative;
+    height: calc(100vh - 48px);
     overflow: hidden;
-  }
-
-  svg#mainSvg {
-    width: 100%;
-    height: 100%;
-    display: block;
-    cursor: grab;
   }
 
   #searchBox {
     position: absolute;
-    left: 50%;
     top: 12px;
+    left: 50%;
     transform: translateX(-50%);
     width: 320px;
     padding: 7px 10px;
-    border-radius: 999px;
-    border: 1px solid #cbd5e1;
-    font-size: 13px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+    border-radius: 8px;
+    border: 1px solid #cfd8e3;
+    font-size: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
     z-index: 20;
   }
 
   #credits {
     position: absolute;
-    right: 12px;
+    right: 16px;
     top: 12px;
     max-width: 260px;
-    background: #ffffff;
-    border-radius: 10px;
-    padding: 8px 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    font-size: 12px;
-    line-height: 1.4;
-    z-index: 20;
+    background:#ffffff;
+    border-radius:8px;
+    padding:8px 10px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.18);
+    font-size:12px;
+    line-height:1.4;
+    z-index:21;
   }
-  #credits b { display:block; margin-bottom:4px; }
+  #credits b{display:block;margin-bottom:4px;}
 
   #tooltip {
     position: absolute;
     padding: 6px 8px;
+    background: rgba(0,0,0,0.86);
+    color:#fff;
     font-size: 12px;
-    max-width: 260px;
     border-radius: 6px;
-    background: rgba(0,0,0,0.85);
-    color: #fff;
-    pointer-events: none;
-    display: none;
-    z-index: 30;
+    display:none;
+    pointer-events:none;
+    z-index:40;
+    max-width:280px;
+  }
+
+  svg.main {
+    width:100%;
+    height:100%;
+    display:block;
+    cursor: grab;
+  }
+
+  svg.minimap {
+    width:260px;
+    height:180px;
+    border:1px solid #cfd8e3;
+    background:#ffffff;
+    position:absolute;
+    right:16px;
+    bottom:16px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.12);
+    z-index:10;
   }
 
   .node rect {
     rx: 10;
     ry: 10;
-    fill: var(--node-bg);
-    stroke: var(--node-stroke);
-    stroke-width: 1.6px;
-    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.20));
+    stroke-width: 1.8px;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
   }
 
-  .node text {
-    font-size: 13px;
-    fill: var(--text);
+  .node text.label {
+    font-size: 14px;
+    fill: var(--node-text);
     pointer-events: none;
   }
 
-  .link {
-    fill: none;
-    stroke-width: 2px;
-    opacity: 0.9;
+  .node text.seq {
+    font-size: 11px;
+    fill:#555;
+    pointer-events:none;
+    font-weight:600;
   }
 
-  .linked text {
-    fill: #0b63b6;
+  .node.linked text.label {
+    fill:#0b63b6;
     text-decoration: underline;
   }
 
+  .link {
+    fill:none;
+    stroke-width:2px;
+    opacity:0.95;
+  }
+
   .end-dot {
-    fill: #d32f2f;
-    stroke: #b00000;
-    stroke-width: 1.4;
+    fill:#d32f2f;
+    stroke:#b00000;
+    stroke-width:1.4;
   }
 
   .highlight rect {
-    stroke: #ffeb3b !important;
-    stroke-width: 4px !important;
-  }
-
-  /* mini-map */
-  #minimapContainer {
-    position: absolute;
-    right: 14px;
-    bottom: 14px;
-    width: 220px;
-    height: 150px;
-    background:#ffffff;
-    border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    padding: 4px;
-    z-index: 15;
-  }
-  #minimap {
-    width: 100%;
-    height: 100%;
-  }
-  #minimap .node rect {
-    filter:none;
-    stroke-width:0.8px;
-  }
-  #minimapViewport {
-    fill:none;
-    stroke:#ff5722;
-    stroke-width:1.2px;
+    stroke:#ffeb3b !important;
+    stroke-width:4px !important;
   }
 </style>
 </head>
-
 <body>
 <header>
-  <div class="toolbar">
+  <div class="controls">
     <button id="btnExpand">Expand All</button>
     <button id="btnCollapse">Collapse All</button>
     <button id="btnFit">Fit to Screen</button>
-    <button id="btnExportSvg">Export SVG</button>
-    <button id="btnExportPng">Export PNG</button>
+    <button id="btnExportSVG">Export SVG</button>
+    <button id="btnExportPNG">Export PNG</button>
   </div>
-  <h1>Open Access & Open Science — Interactive Mindmap</h1>
-  <div style="width:220px"></div>
+  <span>Open Access &amp; Open Science — Interactive Mindmap</span>
 </header>
 
 <div id="canvas">
-  <input id="searchBox" type="text" placeholder="Search node...">
+  <input id="searchBox" type="text" placeholder="Search node..." />
   <div id="credits">
     <b>Credits</b>
     Dr. Tamal Kumar Guha,<br/>
     Librarian, IIT Guwahati<br/><br/>
     Presented at a Workshop on 22nd Nov. 2025 at NEHU, DLISc<br/>
-    <i>Workshop Title:</i> Research Support Services: Role of Libraries and
-    Library Professionals in the Digital Landscape
+    <i>Workshop Title:</i> Research Support Services: Role of Libraries and Library
+    Professionals in the Digital Landscape
   </div>
   <div id="tooltip"></div>
 
-  <svg id="mainSvg">
-    <g id="links-layer"></g>
-    <g id="nodes-layer"></g>
+  <svg class="main">
+    <g id="linksLayer"></g>
+    <g id="nodesLayer"></g>
   </svg>
 
-  <div id="minimapContainer">
-    <svg id="minimap">
-      <g id="mini-links"></g>
-      <g id="mini-nodes"></g>
-      <rect id="minimapViewport"></rect>
-    </svg>
-  </div>
+  <!-- Mini-map -->
+  <svg class="minimap">
+    <g id="miniLinks"></g>
+    <g id="miniNodes"></g>
+    <rect id="miniViewport" fill="none" stroke="#ff6f00" stroke-width="1.5"></rect>
+  </svg>
 </div>
 
 <script>
 const CSV_URL = "https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv";
 
-// Branch colors for first 4 main children
+// layout constants
+const VERT_SPACING = 50;
+const DEPTH_SPACING = 160;
+const MIN_SEP = 40;         // minimum vertical gap for anti-overlap
+const LEFT_COUNT = 2;       // first 2 root branches on left
+const NODE_DUR = 220;
+const LINK_DUR = 220;
+
 const BRANCH_COLORS = [
-  "#1976d2", // 1
-  "#2e7d32", // 2
-  "#fb8c00", // 3
-  "#6a1b9a"  // 4
+  "#1976d2", // left1
+  "#2e7d32", // left2
+  "#fb8c00", // right1
+  "#6a1b9a"  // right2
 ];
 
-const VERT_SPACING = 55;
-const HORIZ_SPACING = 150;
-const MIN_SEP = 40;
+const svg     = d3.select("svg.main");
+const linkG  = d3.select("#linksLayer");
+const nodeG  = d3.select("#nodesLayer");
+const mini   = d3.select("svg.minimap");
+const miniLinks = d3.select("#miniLinks");
+const miniNodes = d3.select("#miniNodes");
+const miniViewport = d3.select("#miniViewport");
+const tooltip = d3.select("#tooltip");
 
-const svg       = d3.select("#mainSvg");
-const linkLayer = d3.select("#links-layer");
-const nodeLayer = d3.select("#nodes-layer");
-const miniSvg   = d3.select("#minimap");
-const miniLinks = d3.select("#mini-links");
-const miniNodes = d3.select("#mini-nodes");
-const miniViewport = d3.select("#minimapViewport");
-const tooltip   = d3.select("#tooltip");
 const searchBox = document.getElementById("searchBox");
 
+// zoom on main SVG
 const zoom = d3.zoom()
   .scaleExtent([0.25, 3])
-  .on("zoom", (event) => {
-    const t = event.transform;
-    linkLayer.attr("transform", t);
-    nodeLayer.attr("transform", t);
-    updateMiniViewport(t);
+  .on("zoom", event => {
+    nodeG.attr("transform", event.transform);
+    linkG.attr("transform", event.transform);
+    updateMiniViewport(event.transform);
   });
 
 svg.call(zoom);
 
-const treeLayout = d3.tree().nodeSize([VERT_SPACING, HORIZ_SPACING]);
+const width  = () => svg.node().clientWidth;
+const height = () => svg.node().clientHeight;
 
-// ---- helpers to get dimensions ----
-const getWidth  = () => svg.node().clientWidth  || svg.node().viewBox.baseVal.width;
-const getHeight = () => svg.node().clientHeight || svg.node().viewBox.baseVal.height;
+// ===== LOAD CSV =====
+d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => {
+  if (!raw || !raw.length) {
+    alert("CSV loaded but no rows found.");
+    return;
+  }
 
-// ---- load CSV ----
-d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(rows => {
-  // normalise
-  const prepared = rows.map(r => ({
-    id:       (r.node_id || "").trim(),
+  // normalize rows
+  const rows = raw.map(r => ({
+    id:       (r.node_id   || "").trim(),
     parentId: (r.parent_id || "").trim(),
     level:    +r.level || 0,
     topic:    (r.topic || "").trim(),
     link:     (r.links || "").trim()
   })).filter(r => r.id);
 
-  const byId = new Map();
-  prepared.forEach(r => byId.set(r.id, {...r, children: []}));
+  // build map
+  const map = new Map();
+  rows.forEach(r => map.set(r.id, Object.assign(r, {children: []})));
 
   let rootData = null;
-  byId.forEach(n => {
-    if (!n.parentId) rootData = n;
-  });
-  if (!rootData) {
-    alert("Could not find root node (row with empty parent_id).");
-    return;
-  }
-
-  byId.forEach(n => {
-    if (n.parentId) {
-      const p = byId.get(n.parentId);
-      if (p) p.children.push(n);
+  map.forEach(n => {
+    if (!n.parentId) {
+      rootData = n;
+    } else if (map.has(n.parentId)) {
+      map.get(n.parentId).children.push(n);
     }
   });
 
-  const root = d3.hierarchy(rootData, d => d.children && d.children.length ? d.children : null);
+  if (!rootData) {
+    alert("No root node found (missing row with empty parent_id).");
+    return;
+  }
 
-  // assign branch + side for main children
+  const root = d3.hierarchy(rootData, d =>
+    d.children && d.children.length ? d.children : null
+  );
+
+  // sequential numbering (pre-order)
+  root.descendants().forEach((d,i) => d.data.seq = i + 1);
+
+  // assign branch + side
   if (root.children) {
-    const mid = Math.ceil(root.children.length / 2);
-    root.children.forEach((c, i) => {
-      const side   = (i < mid) ? -1 : 1; // left / right
+    root.children.forEach((c,i) => {
+      const side = (i < LEFT_COUNT) ? -1 : 1;
       const branch = i % BRANCH_COLORS.length;
-      assignBranch(c, branch, side);
+      assignBranchAndSide(c, branch, side);
     });
   }
 
-  function assignBranch(node, branchIndex, side) {
-    node.data.branch = branchIndex;
-    node.data.side   = side;
-    node.children?.forEach(ch => assignBranch(ch, branchIndex, side));
-  }
-
-  // collapse beyond depth 2 (show first 2 levels)
-  root.x0 = 0; root.y0 = 0;
+  // collapse deeper than level 2 (depth > 2)
   root.descendants().forEach(d => {
-    if (d.depth >= 3 && d.children) {
+    if (d.depth > 2 && d.children) {
       d._children = d.children;
       d.children = null;
     }
   });
 
-  // auto-number sequentially
-  root.descendants().forEach((d, i) => d.data.seq = i + 1);
+  const treeLayout = d3.tree().nodeSize([VERT_SPACING, 100]);
+
+  root.x0 = 0;
+  root.y0 = 0;
 
   update(root);
-  setTimeout(() => fitToScreen(root), 400);
+  setTimeout(() => fitToScreen(), 600);
 
-  // ------------- MAIN UPDATE -------------
+  // button handlers
+  document.getElementById("btnExpand").onclick = () => { expandAll(root); update(root); fitToScreen(); };
+  document.getElementById("btnCollapse").onclick = () => { collapseAll(root); update(root); fitToScreen(); };
+  document.getElementById("btnFit").onclick = () => { fitToScreen(); };
+  document.getElementById("btnExportSVG").onclick = () => exportSVG();
+  document.getElementById("btnExportPNG").onclick = () => exportPNG();
+
+  // search
+  searchBox.addEventListener("input", () => {
+    const q = searchBox.value.trim().toLowerCase();
+    const nodesSel = nodeG.selectAll("g.node");
+    nodesSel.classed("highlight", false);
+    if (!q) return;
+    const matches = nodesSel.filter(d =>
+      (d.data.topic || "").toLowerCase().includes(q)
+    );
+    matches.classed("highlight", true);
+    const first = matches.datum();
+    if (first) centerOn(first);
+  });
+
+  // === FUNCTIONS ===
+  function assignBranchAndSide(node, branch, side) {
+    node.data.branch = branch;
+    node.data.side = side;
+    node.children && node.children.forEach(c => assignBranchAndSide(c, branch, side));
+    node._children && node._children.forEach(c => assignBranchAndSide(c, branch, side));
+  }
+
+  function expandAll(node) {
+    if (node._children) {
+      node.children = node._children;
+      node._children = null;
+    }
+    node.children && node.children.forEach(expandAll);
+  }
+  function collapseAll(node) {
+    node.children && node.children.forEach(child => {
+      collapseAll(child);
+      child._children = child.children;
+      child.children = null;
+    });
+  }
+
+  function colorFor(d) {
+    if (d.depth === 0) {
+      return { fill:"#08306b", stroke:"#08306b" };
+    }
+    const idx = d.data.branch ?? 0;
+    const base = BRANCH_COLORS[idx % BRANCH_COLORS.length];
+    const t = Math.min(d.depth/4, 0.6);
+    return {
+      fill: d3.interpolateRgb(base, "#ffffff")(t),
+      stroke: d3.color(base).darker(0.8).formatHex()
+    };
+  }
+
   function update(source) {
+    // compute layout
     treeLayout(root);
     const nodes = root.descendants();
     const links = root.links();
 
-    // set side-based coordinates and anti-overlap
     nodes.forEach(d => {
-      const side = d.data.side ?? (d.parent ? d.parent.data.side || 1 : 1);
-      d.yPos = d.depth * HORIZ_SPACING * side;
-      d.xPos = d.x;
+      const side = d.data.side !== undefined
+        ? d.data.side
+        : (d.parent ? d.parent.data.side || 1 : 1);
+      d.screenX = d.x;
+      d.screenY = d.depth * DEPTH_SPACING * side;
     });
 
-    const groupByDepth = d3.group(nodes, d => d.depth);
-    groupByDepth.forEach(arr => {
-      arr.sort((a,b) => a.xPos - b.xPos);
-      for (let i = 1; i < arr.length; i++) {
-        const prev = arr[i-1];
-        const cur  = arr[i];
-        if (cur.xPos - prev.xPos < MIN_SEP) {
-          cur.xPos = prev.xPos + MIN_SEP;
+    // anti-overlap per depth
+    const depthGroups = d3.group(nodes, d => d.depth);
+    depthGroups.forEach(group => {
+      group.sort((a,b) => a.screenX - b.screenX);
+      for (let i=1;i<group.length;i++){
+        const prev = group[i-1];
+        const curr = group[i];
+        if (curr.screenX - prev.screenX < MIN_SEP) {
+          const shift = MIN_SEP - (curr.screenX - prev.screenX);
+          curr.screenX += shift;
         }
       }
     });
 
-    // ---- draw nodes ----
-    const nodeSel = nodeLayer.selectAll("g.node")
+    // NODES
+    const nodeSel = nodeG.selectAll("g.node")
       .data(nodes, d => d.data.id);
 
     const nodeEnter = nodeSel.enter()
       .append("g")
       .attr("class","node")
-      .attr("transform", d => `translate(${source.y0 || 0},${source.x0 || 0})`)
+      .attr("transform", `translate(${source.y0 || 0},${source.x0 || 0})`)
       .style("cursor","pointer")
-      .on("click", (event, d) => {
-        // center on node
-        centerOnNode(d);
-        // follow link if present (ctrl+click: open, click: just center)
-        if (d.data.link && !event.ctrlKey && !event.metaKey) {
-          // only center; link on shift+click maybe later
-        } else if (d.data.link && (event.ctrlKey || event.metaKey)) {
-          window.open(d.data.link, "_blank","noopener");
+      .on("click", (event,d) => {
+        centerOn(d);
+        if (d.data.link) {
+          window.open(d.data.link,"_blank","noopener");
         }
       })
-      .on("dblclick", (event, d) => {
+      .on("dblclick", (event,d) => {
         event.stopPropagation();
-        toggleNode(d);
-      })
-      .on("mouseover", (event, d) => {
-        if (!d.data.link) return;
-        tooltip.style("display","block")
-               .html(d.data.link)
-               .style("left", (event.pageX + 10) + "px")
-               .style("top",  (event.pageY + 10) + "px");
-      })
-      .on("mouseout", () => tooltip.style("display","none"));
+        if (d.children) {
+          d._children = d.children;
+          d.children = null;
+        } else {
+          d.children = d._children;
+          d._children = null;
+        }
+        update(d);
+      });
 
-    // create text first (for bbox)
+    nodeEnter.append("rect")
+      .attr("width",40)
+      .attr("height",20)
+      .attr("x",-20)
+      .attr("y",-10)
+      .style("opacity",0);
+
+    nodeEnter.append("text")
+      .attr("class","seq")
+      .attr("text-anchor","end")
+      .attr("x",-6)
+      .attr("y",-1)
+      .text(d => d.data.seq + ".");
+
     nodeEnter.append("text")
       .attr("class","label")
-      .attr("text-anchor","middle")
-      .attr("dy","0.32em")
-      .text(d => `${d.data.seq}. ${d.data.topic}`);
+      .attr("text-anchor","start")
+      .attr("x",0)
+      .attr("y",4)
+      .text(d => d.data.topic || d.data.id);
 
+    // size rects & apply colors
     nodeEnter.each(function(d){
-      const g = d3.select(this);
-      const tNode = g.select("text").node();
-      const bb = tNode.getBBox();
-      const padX = 12, padY = 6;
-      const w = bb.width + padX*2;
-      const h = bb.height + padY*2;
+      const gSel = d3.select(this);
+      const seqBB = gSel.select("text.seq").node().getBBox();
+      const labBB = gSel.select("text.label").node().getBBox();
+      const padX=10, padY=6;
+      const w = seqBB.width + labBB.width + padX*2 + 6;
+      const h = Math.max(seqBB.height, labBB.height) + padY*2;
 
-      const colors = colorFor(d);
+      const {fill,stroke} = colorFor(d);
 
-      g.insert("rect","text")
-        .attr("x", -w/2)
-        .attr("y", -h/2)
-        .attr("width", w)
-        .attr("height", h)
-        .style("fill", colors.fill)
-        .style("stroke", colors.stroke);
+      gSel.select("rect")
+        .attr("x",-w/2)
+        .attr("y",-h/2)
+        .attr("width",w)
+        .attr("height",h)
+        .style("fill",fill)
+        .style("stroke",stroke);
 
-      if (d.data.link) {
-        g.classed("linked", true);
+      const offsetLeft = -w/2 + padX;
+      gSel.select("text.seq")
+        .attr("x", offsetLeft + seqBB.width)
+        .attr("y", 4 - h/2 + padY);
+
+      gSel.select("text.label")
+        .attr("x", offsetLeft + seqBB.width + 6)
+        .attr("y", 4 - h/2 + padY);
+
+      if (d.depth === 0) {
+        gSel.selectAll("text")
+          .style("fill","#ffffff")
+          .style("font-weight","600");
+      } else if (d.data.link) {
+        gSel.classed("linked", true);
       }
+    });
 
+    // merge + transition
+    const nodeMerge = nodeEnter.merge(nodeSel);
+    nodeMerge.transition().duration(NODE_DUR)
+      .attr("transform", d => `translate(${d.screenY},${d.screenX})`);
+
+    // leaf dots
+    nodeMerge.each(function(d){
+      const gSel = d3.select(this);
+      gSel.select("circle.end-dot").remove();
       if (!d.children && !d._children) {
+        const rect = gSel.select("rect").node().getBBox();
         const side = d.data.side ?? (d.parent ? d.parent.data.side || 1 : 1);
-        const dotX = side >= 0 ? (w/2 + 8) : -(w/2 + 8);
-        g.append("circle")
+        const cx = side >= 0 ? rect.x + rect.width + 10 : rect.x - 10;
+        gSel.append("circle")
           .attr("class","end-dot")
-          .attr("r",4.5)
-          .attr("cx", dotX)
+          .attr("r",5)
+          .attr("cx",cx)
           .attr("cy",0);
       }
     });
 
-    const nodeMerge = nodeEnter.merge(nodeSel);
-
-    nodeMerge.transition().duration(250)
-      .attr("transform", d => `translate(${d.yPos},${d.xPos})`);
-
     nodeSel.exit()
-      .transition().duration(200)
+      .transition().duration(NODE_DUR)
       .style("opacity",0)
       .remove();
 
-    // ---- draw links ----
-    const linkSel = linkLayer.selectAll("path.link")
+    // LINKS
+    const linkSel = linkG.selectAll("path.link")
       .data(links, d => d.target.data.id);
 
     const linkEnter = linkSel.enter()
       .append("path")
       .attr("class","link")
-      .style("stroke", d => colorFor(d.target).stroke)
-      .attr("d", d => curvedPath(source, source));
+      .attr("d", d => pathCurve(source, source))
+      .style("stroke-dasharray", function(){
+        const len = this.getTotalLength ? this.getTotalLength() : 0;
+        return len+" "+len;
+      })
+      .style("stroke-dashoffset", function(){
+        return this.getTotalLength ? this.getTotalLength() : 0;
+      });
 
     linkEnter.merge(linkSel)
-      .transition().duration(250)
       .style("stroke", d => colorFor(d.target).stroke)
-      .attr("d", d => curvedPath(d.source, d.target));
+      .transition().duration(LINK_DUR)
+      .attr("d", d => pathCurve(d.source, d.target))
+      .style("stroke-dashoffset",0);
 
     linkSel.exit()
-      .transition().duration(200)
+      .transition().duration(LINK_DUR)
       .style("opacity",0)
       .remove();
 
-    nodes.forEach(d => { d.x0 = d.xPos; d.y0 = d.yPos; });
+    nodes.forEach(d => { d.x0 = d.screenX; d.y0 = d.screenY; });
 
-    drawMinimap(nodes, links);
+    // update minimap
+    drawMini(nodes, links);
   }
 
-  // -------- helpers --------
-  function toggleNode(d){
-    if (d.children) {
-      d._children = d.children;
-      d.children = null;
-    } else {
-      d.children = d._children;
-      d._children = null;
-    }
-    update(d);
-  }
-
-  function colorFor(d){
-    if (d.depth === 0) {
-      return {fill:"#08306b", stroke:"#08306b"};
-    }
-    const idx = d.data.branch ?? 0;
-    const base = d3.color(BRANCH_COLORS[idx % BRANCH_COLORS.length]);
-    const t = Math.min(d.depth/4, 0.6);
-    return {
-      fill: d3.interpolateRgb(base, "#ffffff")(t),
-      stroke: base.darker(0.7)
-    };
-  }
-
-  function curvedPath(s, t){
-    const x1 = s.xPos ?? s.x0;
-    const y1 = s.yPos ?? s.y0;
-    const x2 = t.xPos ?? t.y0;
-    const y2 = t.yPos ?? t.y0;
+  function pathCurve(s,d){
+    const x1 = s.screenY ?? s.y0, y1 = s.screenX ?? s.x0;
+    const x2 = d.screenY ?? d.y0, y2 = d.screenX ?? d.x0;
     const k = 0.55;
-    const cx1 = y1 + (y2 - y1) * k;
-    const cx2 = y2 - (y2 - y1) * k;
-    return `M${y1},${x1} C${cx1},${x1} ${cx2},${x2} ${y2},${x2}`;
+    const cx1 = x1 + (x2 - x1) * k;
+    const cx2 = x2 - (x2 - x1) * k;
+    return `M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}`;
   }
 
-  function fitToScreen(source){
-    try{
-      const box = nodeLayer.node().getBBox();
-      const w = getWidth();
-      const h = getHeight();
-      const margin = 60;
+  function getBBoxAll(){
+    const box = nodeG.node().getBBox();
+    return box;
+  }
 
+  function fitToScreen(){
+    try{
+      const box = getBBoxAll();
+      const w = width(), h = height();
+      const margin = 80;
       const scale = Math.min(
         (w - margin)/box.width,
         (h - margin)/box.height
       );
-
-      const s = Math.max(0.3, Math.min(scale, 1.5));
+      const s = Math.max(0.25, Math.min(scale, 1.8));
       const tx = (w - box.width*s)/2 - box.x*s;
       const ty = (h - box.height*s)/2 - box.y*s;
-
       svg.transition().duration(450)
-        .call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(s));
-    } catch(err) {
-      console.warn("fitToScreen error:", err);
+        .call(zoom.transform,
+          d3.zoomIdentity.translate(tx,ty).scale(s)
+        );
+    } catch(e){
+      console.warn("fitToScreen error",e);
     }
   }
 
-  function centerOnNode(d){
-    const w = getWidth(), h = getHeight();
+  function centerOn(d){
+    const w = width(), h = height();
     const scale = d3.zoomTransform(svg.node()).k;
-    const targetScale = Math.min(1.8, Math.max(0.8, scale * 1.1));
-    const x = d.yPos, y = d.xPos;
-
-    const tx = w/2 - x * targetScale;
-    const ty = h/2 - y * targetScale;
-
+    const x = d.screenY;
+    const y = d.screenX;
+    const tx = w/2 - x*scale;
+    const ty = h/2 - y*scale;
     svg.transition().duration(400)
-       .call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(targetScale));
+      .call(zoom.transform,
+        d3.zoomIdentity.translate(tx,ty).scale(scale)
+      );
   }
 
-  // minimap
-  function drawMinimap(nodes, links){
-    const miniW = +miniSvg.attr("width")  || miniSvg.node().clientWidth;
-    const miniH = +miniSvg.attr("height") || miniSvg.node().clientHeight;
+  // MINIMAP DRAW
+  function drawMini(nodes, links){
+    const box = getBBoxAll();
+    const mw = mini.node().clientWidth;
+    const mh = mini.node().clientHeight;
+    const scale = Math.min(mw/box.width, mh/box.height)*0.9;
+    const tx = (mw - box.width*scale)/2 - box.x*scale;
+    const ty = (mh - box.height*scale)/2 - box.y*scale;
 
-    const box = nodeLayer.node().getBBox();
-    const sx = miniW / box.width;
-    const sy = miniH / box.height;
-    const s  = Math.min(sx, sy);
+    const transform = d3.zoomIdentity.translate(tx,ty).scale(scale);
 
-    const ox = -box.x * s;
-    const oy = -box.y * s;
+    const mLinks = miniLinks.selectAll("path").data(links, d=>d.target.data.id);
+    mLinks.enter().append("path").merge(mLinks)
+      .attr("d", d => {
+        const s = transform.apply([d.source.screenY, d.source.screenX]);
+        const t = transform.apply([d.target.screenY, d.target.screenX]);
+        return `M${s[0]},${s[1]} L${t[0]},${t[1]}`;
+      })
+      .attr("stroke","#c1cad9")
+      .attr("stroke-width",1)
+      .attr("fill","none");
+    mLinks.exit().remove();
 
-    const nData = nodes.map(d => ({
-      id:d.data.id,
-      x:(d.yPos)*s + ox,
-      y:(d.xPos)*s + oy,
-      depth:d.depth,
-      branch:d.data.branch
-    }));
+    const mNodes = miniNodes.selectAll("circle").data(nodes, d=>d.data.id);
+    mNodes.enter().append("circle").merge(mNodes)
+      .attr("r",2)
+      .attr("cx", d => transform.apply([d.screenY,d.screenX])[0])
+      .attr("cy", d => transform.apply([d.screenY,d.screenX])[1])
+      .attr("fill","#546e7a");
+    mNodes.exit().remove();
 
-    const lData = links.map(l => ({
-      sx:(l.source.yPos)*s + ox,
-      sy:(l.source.xPos)*s + oy,
-      tx:(l.target.yPos)*s + ox,
-      ty:(l.target.xPos)*s + oy,
-      branch:l.target.data.branch
-    }));
-
-    const miniLinkSel = miniLinks.selectAll("line")
-      .data(lData, d => d.sx + "-" + d.tx + "-" + d.ty);
-
-    miniLinkSel.enter().append("line")
-      .merge(miniLinkSel)
-      .attr("x1",d=>d.sx).attr("y1",d=>d.sy)
-      .attr("x2",d=>d.tx).attr("y2",d=>d.ty)
-      .attr("stroke",d=>BRANCH_COLORS[(d.branch||0)%BRANCH_COLORS.length])
-      .attr("stroke-width",0.8);
-
-    miniLinkSel.exit().remove();
-
-    const miniNodeSel = miniNodes.selectAll("circle")
-      .data(nData, d=>d.id);
-
-    miniNodeSel.enter().append("circle")
-      .merge(miniNodeSel)
-      .attr("cx",d=>d.x).attr("cy",d=>d.y)
-      .attr("r",d=>d.depth===0?3:1.6)
-      .attr("fill",d=>BRANCH_COLORS[(d.branch||0)%BRANCH_COLORS.length]);
-
-    miniNodeSel.exit().remove();
-
-    // store scale/offset for viewport
-    miniSvg.node().__bboxScale = {s,ox,oy,boxW:box.width,boxH:box.height};
-    updateMiniViewport(d3.zoomTransform(svg.node()));
+    // viewport rect will be updated by updateMiniViewport on zoom
+    updateMiniViewport(d3.zoomTransform(svg.node()), transform, box);
   }
 
-  function updateMiniViewport(t){
-    const info = miniSvg.node().__bboxScale;
-    if (!info) return;
-    const {s,ox,oy,boxW,boxH} = info;
-    const inv = t.invert([0,0]);
-    const invBR = t.invert([getWidth(), getHeight()]);
+  function updateMiniViewport(mainTransform, miniTransform, box){
+    if (!miniTransform || !box){
+      const b = getBBoxAll();
+      const mw = mini.node().clientWidth;
+      const mh = mini.node().clientHeight;
+      const scale = Math.min(mw/b.width, mh/b.height)*0.9;
+      miniTransform = d3.zoomIdentity
+        .translate((mw-b.width*scale)/2 - b.x*scale,
+                   (mh-b.height*scale)/2 - b.y*scale)
+        .scale(scale);
+      box = b;
+    }
+    const mw = mini.node().clientWidth;
+    const mh = mini.node().clientHeight;
 
-    const vx1 = inv[0]*s + ox;
-    const vy1 = inv[1]*s + oy;
-    const vx2 = invBR[0]*s + ox;
-    const vy2 = invBR[1]*s + oy;
+    const invMain = mainTransform.invert([0,0]);
+    const invMainBR = mainTransform.invert([width(), height()]);
+
+    const topLeft  = miniTransform.apply(invMain);
+    const botRight = miniTransform.apply(invMainBR);
 
     miniViewport
-      .attr("x",vx1).attr("y",vy1)
-      .attr("width",vx2-vx1).attr("height",vy2-vy1);
+      .attr("x", topLeft[0])
+      .attr("y", topLeft[1])
+      .attr("width",  botRight[0] - topLeft[0])
+      .attr("height", botRight[1] - topLeft[1]);
   }
 
-  // -------- search --------
-  searchBox.addEventListener("input", () => {
-    const q = searchBox.value.trim().toLowerCase();
-    const nodes = nodeLayer.selectAll("g.node");
-    nodes.classed("highlight",false);
-    if (!q) return;
-
-    const matches = nodes.filter(d =>
-      (d.data.topic || "").toLowerCase().includes(q)
-    );
-    matches.classed("highlight",true);
-
-    const first = matches.datum();
-    if (first) centerOnNode(first);
-  });
-
-  // -------- buttons --------
-  document.getElementById("btnExpand").onclick = () => {
-    root.descendants().forEach(d => {
-      if (d._children) {
-        d.children = d._children;
-        d._children = null;
-      }
-    });
-    update(root);
-    setTimeout(()=>fitToScreen(root),300);
-  };
-
-  document.getElementById("btnCollapse").onclick = () => {
-    root.descendants().forEach(d => {
-      if (d.depth >= 1 && d.children) {
-        d._children = d.children;
-        d.children = null;
-      }
-    });
-    update(root);
-    setTimeout(()=>fitToScreen(root),300);
-  };
-
-  document.getElementById("btnFit").onclick = () => fitToScreen(root);
-
-  document.getElementById("btnExportSvg").onclick = () => {
-    const serializer = new XMLSerializer();
-    const svgNode = document.getElementById("mainSvg");
-    const clone = svgNode.cloneNode(true);
+  // EXPORT SVG
+  function exportSVG(){
+    const clone = svg.node().cloneNode(true);
     clone.removeAttribute("style");
-    const svgBlob = new Blob(
-      ['<?xml version="1.0" encoding="UTF-8"?>\n', serializer.serializeToString(clone)],
-      {type: "image/svg+xml;charset=utf-8"}
-    );
-    const url = URL.createObjectURL(svgBlob);
+    const outer = document.createElementNS("http://www.w3.org/2000/svg","svg");
+    outer.setAttribute("xmlns","http://www.w3.org/2000/svg");
+    outer.setAttribute("width", width());
+    outer.setAttribute("height", height());
+    outer.setAttribute("viewBox", `0 0 ${width()} ${height()}`);
+    outer.appendChild(clone);
+    const serializer = new XMLSerializer();
+    const source = serializer.serializeToString(outer);
+    const blob = new Blob([source],{type:"image/svg+xml;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "open-access-open-science-mindmap.svg";
+    a.download = "open_access_open_science_mindmap.svg";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
+  }
 
-  document.getElementById("btnExportPng").onclick = () => {
+  // EXPORT PNG
+  function exportPNG(){
     const serializer = new XMLSerializer();
-    const svgNode = document.getElementById("mainSvg");
-    const clone = svgNode.cloneNode(true);
-    clone.removeAttribute("style");
-    const svgStr = serializer.serializeToString(clone);
-    const canvas = document.createElement("canvas");
-    const w = getWidth(), h = getHeight();
-    canvas.width = w * 2;
-    canvas.height = h * 2;
-    const ctx = canvas.getContext("2d");
-    const img = new Image();
-    const svgBlob = new Blob([svgStr], {type:"image/svg+xml;charset=utf-8"});
+    const clone = svg.node().cloneNode(true);
+    const outer = document.createElementNS("http://www.w3.org/2000/svg","svg");
+    outer.setAttribute("xmlns","http://www.w3.org/2000/svg");
+    outer.setAttribute("width", width());
+    outer.setAttribute("height", height());
+    outer.setAttribute("viewBox", `0 0 ${width()} ${height()}`);
+    outer.appendChild(clone);
+    const source = serializer.serializeToString(outer);
+    const svgBlob = new Blob([source],{type:"image/svg+xml;charset=utf-8"});
     const url = URL.createObjectURL(svgBlob);
-    img.onload = () => {
-      ctx.setTransform(2,0,0,2,0,0);
+
+    const img = new Image();
+    img.onload = function(){
+      const canvas = document.createElement("canvas");
+      canvas.width = width();
+      canvas.height = height();
+      const ctx = canvas.getContext("2d");
       ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0,0,w,h);
+      ctx.fillRect(0,0,canvas.width,canvas.height);
       ctx.drawImage(img,0,0);
       URL.revokeObjectURL(url);
-      const pngUrl = canvas.toDataURL("image/png");
-      const a = document.createElement("a");
-      a.href = pngUrl;
-      a.download = "open-access-open-science-mindmap.png";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      canvas.toBlob(function(blob){
+        const a = document.createElement("a");
+        const url2 = URL.createObjectURL(blob);
+        a.href = url2;
+        a.download = "open_access_open_science_mindmap.png";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url2);
+      });
     };
     img.src = url;
-  };
+  }
 
-}); // end csv then
+}).catch(err => {
+  console.error("Error loading CSV:",err);
+  alert("Failed to load CSV data. Check console for details.");
+});
 </script>
 </body>
 </html>
