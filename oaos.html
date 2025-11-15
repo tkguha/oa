@@ -185,7 +185,7 @@ const getWidth  = () => svg.node().clientWidth;
 const getHeight = () => svg.node().clientHeight;
 
 // ================== LOAD CSV ==================
-d3.csv(CSV_URL).then(raw => {
+d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => {
 
   // Normalise columns
   const rows = raw.map(r => ({
