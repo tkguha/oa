@@ -39,7 +39,6 @@
     display:block;
   }
 
-  /* search box */
   #searchBox{
     position:absolute;
     left:50%;
@@ -53,7 +52,6 @@
     z-index:20;
   }
 
-  /* credit note (top-right, stays in front) */
   #credits{
     position:absolute;
     right:14px;
@@ -69,7 +67,6 @@
   }
   #credits b{display:block;margin-bottom:4px;}
 
-  /* tooltip */
   #tooltip{
     position:absolute;
     padding:8px 10px;
@@ -83,7 +80,6 @@
     pointer-events:none;
   }
 
-  /* nodes */
   .node text{
     font-size:14px;
     pointer-events:none;
@@ -116,7 +112,6 @@
     stroke-width:4px !important;
   }
 
-  /* linked nodes: underline + blue */
   .linked text{
     text-decoration:underline;
     fill:#0b63b6;
@@ -146,23 +141,22 @@
 
 <script>
 // ================== CONFIG ==================
-const CSV_URL =
-  "https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv";
-
-const ROOT_ID = "1";
-const LEFT_COUNT = 2;           // first 2 main branches on left
-const VERT_SPACING = 50;        // vertical gap between nodes
-const DEPTH_SPACING = 160;      // horizontal distance per depth
-const MIN_SEP = 40;             // min vertical separation (anti-overlap)
+const CSV_URL   = "https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv";
+const LEFT_COUNT = 2;           // first 2 root branches on left
+const VERT_SPACING  = 50;
+const DEPTH_SPACING = 160;
+const MIN_SEP       = 40;
+const NODE_DUR      = 300;
+const LINK_DUR      = 300;
 
 const BRANCH_BASE = [
-  "#1976d2", // left branch 1 (blue)
-  "#2e7d32", // left branch 2 (green)
-  "#fb8c00", // right branch 1 (orange)
-  "#6a1b9a"  // right branch 2 (purple)
+  "#1976d2",
+  "#2e7d32",
+  "#fb8c00",
+  "#6a1b9a"
 ];
-const ROOT_FILL  = "#08306b";
-const ROOT_STROKE= "#08306b";
+const ROOT_FILL   = "#08306b";
+const ROOT_STROKE = "#08306b";
 
 // ================== SVG & ZOOM ==================
 const svg        = d3.select("svg");
@@ -174,9 +168,8 @@ const searchBox  = document.getElementById("searchBox");
 const zoom = d3.zoom()
   .scaleExtent([0.25, 3])
   .on("zoom", (event) => {
-    const t = event.transform;
-    linkLayer.attr("transform", t);
-    nodeLayer.attr("transform", t);
+    linkLayer.attr("transform", event.transform);
+    nodeLayer.attr("transform", event.transform);
   });
 
 svg.call(zoom);
@@ -187,21 +180,18 @@ const getHeight = () => svg.node().clientHeight;
 // ================== LOAD CSV ==================
 d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => {
 
-  // Normalise columns
+  // normalise CSV
   const rows = raw.map(r => ({
-    id:       (r.node_id || "").trim(),
+    id:       (r.node_id   || "").trim(),
     parentId: (r.parent_id || "").trim(),
     level:    +r.level || 0,
     name:     (r.topic || "").trim(),
     link:     (r.links || "").trim()
-  }));
+  })).filter(r => r.id); // ignore any empty rows
 
-  // Build map and parent-child relationships
+  // build map & children
   const byId = new Map();
-  rows.forEach(r => {
-    if (!r.id) return;
-    byId.set(r.id, {...r, children: []});
-  });
+  rows.forEach(r => byId.set(r.id, {...r, children: []}));
 
   let rootData = null;
   byId.forEach(node => {
@@ -219,44 +209,50 @@ d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => 
 
   const root = d3.hierarchy(rootData, d => d.children && d.children.length ? d.children : null);
 
-  // Auto-number nodes sequentially (pre-order)
-  root.descendants().forEach((d, i) => {
-    d.data.seq = i + 1;
-  });
+  // sequential numbering
+  root.descendants().forEach((d, i) => { d.data.seq = i + 1; });
 
-  // Assign branch index + side
+  // assign branch + side from first-level children
   if (root.children) {
     root.children.forEach((c, i) => {
-      const side = (i < LEFT_COUNT) ? -1 : 1;
+      const side = i < LEFT_COUNT ? -1 : 1;
       const branchIndex = i % BRANCH_BASE.length;
       assignBranchAndSide(c, branchIndex, side);
     });
   }
 
-  function assignBranchAndSide(node, branch, side) {
+  function assignBranchAndSide(node, branch, side){
     node.data.branch = branch;
     node.data.side   = side;
-    node.children   ?.forEach(ch => assignBranchAndSide(ch, branch, side));
-    node._children  ?.forEach(ch => assignBranchAndSide(ch, branch, side));
+    node.children?.forEach(ch => assignBranchAndSide(ch, branch, side));
   }
 
-  // collapse all initially except first level
-  root.children?.forEach(collapseAll);
-  root.children?.forEach(c => { c.children = c._children; c._children = null; });
+  // expand everything, then collapse below depth 2 (keep first 2 levels open)
+  root.descendants().forEach(d => {
+    if (d.children || d._children) {
+      d.children = d.children || d._children;
+      d._children = null;
+    }
+  });
+  root.descendants().forEach(d => {
+    if (d.depth > 2 && d.children) {
+      d._children = d.children;
+      d.children = null;
+    }
+  });
 
   const treeLayout = d3.tree().nodeSize([VERT_SPACING, 100]);
 
   update(root);
   setTimeout(autoFit, 600);
 
-  // ================== UPDATE (RENDER) ==================
-  function update(source) {
-    // layout
+  // =============== UPDATE (DRAW) ===============
+  function update(source){
     treeLayout(root);
     const nodes = root.descendants();
     const links = root.links();
 
-    // horizontal balanced layout using side
+    // balanced left/right
     nodes.forEach(d => {
       const side = d.data.side !== undefined
         ? d.data.side
@@ -265,7 +261,7 @@ d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => 
       d.screenY = d.depth * DEPTH_SPACING * side;
     });
 
-    // anti-overlap: adjust x per depth
+    // anti-overlap per depth
     const depthGroups = d3.group(nodes, d => d.depth);
     depthGroups.forEach(group => {
       group.sort((a,b) => a.screenX - b.screenX);
@@ -273,7 +269,8 @@ d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => 
         const prev = group[i-1];
         const curr = group[i];
         if (curr.screenX - prev.screenX < MIN_SEP) {
-          curr.screenX = prev.screenX + MIN_SEP;
+          const shift = MIN_SEP - (curr.screenX - prev.screenX);
+          curr.screenX += shift;
         }
       }
     });
@@ -288,9 +285,7 @@ d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => 
       .attr("transform", `translate(${source.y0 || 0},${source.x0 || 0})`)
       .style("cursor","pointer")
       .on("click", (event, d) => {
-        if (d.data.link) {
-          window.open(d.data.link, "_blank", "noopener");
-        }
+        if (d.data.link) window.open(d.data.link, "_blank", "noopener");
       })
       .on("dblclick", (event, d) => {
         event.stopPropagation();
@@ -302,29 +297,15 @@ d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => 
           d._children = null;
         }
         update(d);
-      })
-      .on("mouseover", (event, d) => {
-        if (!d.data.link) return;
-        tooltip.style("display","block")
-               .html(d.data.link)
-               .style("left", (event.pageX + 12) + "px")
-               .style("top",  (event.pageY + 12) + "px");
-      })
-      .on("mousemove", (event) => {
-        tooltip.style("left", (event.pageX + 12) + "px")
-               .style("top",  (event.pageY + 12) + "px");
-      })
-      .on("mouseout", () => tooltip.style("display","none"));
+      });
 
-    // base rect & text
     nodeEnter.append("rect")
-      .attr("width", 40)
-      .attr("height", 20)
-      .attr("x", -20)
-      .attr("y", -10)
+      .attr("width",40)
+      .attr("height",20)
+      .attr("x",-20)
+      .attr("y",-10)
       .style("opacity",0);
 
-    // node number
     nodeEnter.append("text")
       .attr("class","node-number")
       .attr("text-anchor","end")
@@ -332,7 +313,6 @@ d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => 
       .attr("y",-2)
       .text(d => d.data.seq + ".");
 
-    // label text
     nodeEnter.append("text")
       .attr("class","label-text")
       .attr("text-anchor","start")
@@ -340,7 +320,6 @@ d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => 
       .attr("y",4)
       .text(d => d.data.name);
 
-    // size rect to fit text
     nodeEnter.each(function(d){
       const gSel = d3.select(this);
       const num  = gSel.select(".node-number").node().getBBox();
@@ -359,7 +338,6 @@ d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => 
         .style("fill", d.depth===0 ? ROOT_FILL : fill)
         .style("stroke", d.depth===0 ? ROOT_STROKE : stroke);
 
-      // center numbering+label
       const offsetLeft = -width/2 + padX;
       gSel.select(".node-number")
         .attr("x", offsetLeft + num.width)
@@ -388,7 +366,7 @@ d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => 
       .style("opacity",0)
       .remove();
 
-    // update leaf dots
+    // red dots on leaves
     nodeMerge.each(function(d){
       const gSel = d3.select(this);
       gSel.select(".end-dot").remove();
@@ -410,31 +388,21 @@ d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => 
     const linkEnter = linkSel.enter()
       .append("path")
       .attr("class","link")
-      .attr("d", d => linkPath(source, source))
-      .style("stroke-dasharray", function(){
-        const L = this.getTotalLength ? this.getTotalLength() : 0;
-        return `${L} ${L}`;
-      })
-      .style("stroke-dashoffset", function(){
-        return this.getTotalLength ? this.getTotalLength() : 0;
-      });
+      .attr("d", d => linkPath(source, source));
 
     linkEnter.merge(linkSel)
       .style("stroke", d => colorFor(d.target).stroke)
       .transition().duration(LINK_DUR)
-      .attr("d", d => linkPath(d.source, d.target))
-      .style("stroke-dashoffset",0);
+      .attr("d", d => linkPath(d.source, d.target));
 
     linkSel.exit()
       .transition().duration(LINK_DUR)
       .style("opacity",0)
       .remove();
 
-    // store old positions
     nodes.forEach(d => { d.x0 = d.screenX; d.y0 = d.screenY; });
   }
 
-  // S-curve for links
   function linkPath(s, d){
     const sx = s.screenY ?? s.y0;
     const sy = s.screenX ?? s.x0;
@@ -444,11 +412,8 @@ d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => 
     return `M${sx},${sy} C${sx+dx},${sy} ${tx-dx},${ty} ${tx},${ty}`;
   }
 
-  // branch colour (lighter with depth)
   function colorFor(d){
-    if (d.depth === 0) {
-      return {fill:ROOT_FILL, stroke:ROOT_STROKE};
-    }
+    if (d.depth === 0) return {fill:ROOT_FILL, stroke:ROOT_STROKE};
     const idx = d.data.branch ?? 0;
     const base = BRANCH_BASE[idx % BRANCH_BASE.length];
     const t = Math.min(d.depth/5, 0.6);
@@ -458,7 +423,6 @@ d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => 
     };
   }
 
-  // auto-fit once at start
   function autoFit(){
     try{
       const box = nodeLayer.node().getBBox();
@@ -475,7 +439,7 @@ d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => 
     }
   }
 
-  // =============== SEARCH ===============
+  // SEARCH
   searchBox.addEventListener("input", () => {
     const q = searchBox.value.trim().toLowerCase();
     const nodes = nodeLayer.selectAll("g.node");
@@ -490,9 +454,9 @@ d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => 
 
     const first = matches.datum();
     if (first) {
-      // zoom to first match
-      const box = nodes.filter(d => d.data.id === first.data.id)
-                       .node().getBBox();
+      const n = nodes.filter(d => d.data.id === first.data.id).node();
+      if (!n) return;
+      const box = n.getBBox();
       const cx = box.x + box.width/2;
       const cy = box.y + box.height/2;
       const w = getWidth(), h = getHeight();
