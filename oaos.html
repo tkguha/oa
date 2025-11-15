@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Open Access and Open Science Mindmap</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #f7f9fb;
+    }
+
+    /* Centered container with max width */
+    #container {
+        max-width: 1600px;
+        margin: auto;
+        padding-top: 10px;
+    }
+
+    /* Title */
+    #title {
+        text-align: center;
+        font-size: 28px;
+        font-weight: bold;
+        padding: 12px;
+        background: #0d47a1;
+        color: white;
+        border-radius: 6px;
+        margin-bottom: 10px;
+    }
+
+    /* Search bar */
+    #searchBox {
+        width: 300px;
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: 1px solid #aaa;
+        font-size: 16px;
+        margin: 10px auto;
+        display: block;
+    }
+
+    /* Tooltip */
+    #tooltip {
+        position: absolute;
+        padding: 8px 12px;
+        background: #fff;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        pointer-events: none;
+        display: none;
+        font-size: 13px;
+        max-width: 300px;
+        white-space: normal;
+    }
+
+    /* Node styles */
+    .node rect {
+        rx: 10;
+        ry: 10;
+        stroke-width: 1.4px;
+    }
+
+    /* End-of-branch dot */
+    .end-dot {
+        fill: red;
+    }
+
+    /* Make text always on top */
+    g.node text {
+        pointer-events: none;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    /* Connector lines under nodes */
+    .link {
+        fill: none;
+        stroke-width: 2px;
+        opacity: 0.9;
+    }
+
+    /* Highlight for search */
+    .highlight rect {
+        stroke: #ffeb3b;
+        stroke-width: 4px;
+    }
+</style>
+</head>
+
+<body>
+
+<div id="container">
+    <div id="title">Open Access and Open Science</div>
+    <input id="searchBox" type="text" placeholder="Search node...">
+    <div id="tooltip"></div>
+    <svg id="mindmap" width="100%" height="900"></svg>
+</div>
+
+<script>
+// CSV SOURCE
+const CSV_URL = "https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv";
+
+// Colors for branches (Option B)
+const branchColors = {
+    left1: "#4a90e2",
+    left2: "#7bca62",
+    right1: "#f5a623",
+    right2: "#9b59b6"
+};
+
+const svg = d3.select("#mindmap");
+const g = svg.append("g");
+
+// Tooltip
+const tooltip = d3.select("#tooltip");
+
+// Zoom / pan
+const zoom = d3.zoom().scaleExtent([0.25, 3]).on("zoom", e => g.attr("transform", e.transform));
+svg.call(zoom);
+
+// Load CSV
+d3.csv(CSV_URL).then(data => {
+
+    // Build lookup table
+    const nodes = {};
+    data.forEach(d => {
+        nodes[d.ID] = d;
+        d.children = [];
+    });
+
+    let rootNode = null;
+
+    // Build tree structure
+    data.forEach(d => {
+        if (d.ParentID === "" || d.ParentID === null) {
+            rootNode = d;
+        } else {
+            nodes[d.ParentID].children.push(d);
+        }
+    });
+
+    // Convert to D3 hierarchy
+    const root = d3.hierarchy(rootNode, d => d.children);
+
+    // Assign left/right
+    root.children.forEach((c, i) => {
+        c.data.side = (i < 2) ? "left" : "right";
+        markSide(c);
+    });
+
+    function markSide(node) {
+        if (node.children) {
+            node.children.forEach(c => {
+                c.data.side = node.data.side;
+                markSide(c);
+            });
+        }
+    }
+
+    // Layout engine
+    const tree = d3.tree().nodeSize([45, 160]);
+    tree(root);
+
+    // Curved MindMapAI-like connectors
+    function curve(s, d) {
+        const x1 = s.x, y1 = s.y;
+        const x2 = d.x, y2 = d.y;
+        const curvature = 0.55;
+        const cx1 = y1 + (y2 - y1) * curvature;
+        const cx2 = y2 - (y2 - y1) * curvature;
+        return `M${y1},${x1} C${cx1},${x1} ${cx2},${x2} ${y2},${x2}`;
+    }
+
+    // DRAW LINKS
+    g.selectAll(".link")
+        .data(root.links())
+        .enter()
+        .append("path")
+        .attr("class", "link")
+        .attr("stroke", d => {
+            const side = d.target.data.side;
+            if (side === "left") return d.target.depth <= 2 ? branchColors.left1 : branchColors.left2;
+            return d.target.depth <= 2 ? branchColors.right1 : branchColors.right2;
+        })
+        .attr("d", d => curve(d.source, d.target));
+
+    // DRAW NODES
+    const node = g.selectAll(".node")
+        .data(root.descendants())
+        .enter()
+        .append("g")
+        .attr("class", "node")
+        .attr("transform", d => `translate(${d.y},${d.x})`)
+        .style("cursor", "pointer")
+        .on("mouseover", (e, d) => {
+            if (d.data.Details) {
+                tooltip.style("display", "block")
+                       .html(d.data.Details)
+                       .style("left", (e.pageX + 12) + "px")
+                       .style("top", (e.pageY + 12) + "px");
+            }
+        })
+        .on("mouseout", () => tooltip.style("display", "none"))
+        .on("click", (e, d) => {
+            if (d.data.PhotoURL && d.data.PhotoURL.trim() !== "")
+                window.open(d.data.PhotoURL, "_blank");
+        })
+        .on("dblclick", (e, d) => {
+            e.stopPropagation();
+            if (d.children) {
+                d._children = d.children;
+                d.children = null;
+            } else {
+                d.children = d._children;
+                d._children = null;
+            }
+        });
+
+    // Node rectangles
+    node.each(function(d) {
+        const gSel = d3.select(this);
+        gSel.append("rect")
+            .attr("width", 1)
+            .attr("height", 1)
+            .attr("fill", "#fff")
+            .attr("stroke", "#666");
+
+        gSel.append("text")
+            .attr("x", 0)
+            .attr("y", 0)
+            .text(d.data.Name);
+    });
+
+    // Resize rectangles to fit text
+    node.each(function(d) {
+        const gSel = d3.select(this);
+        const text = gSel.select("text");
+        const bb = text.node().getBBox();
+
+        text.attr("x", -bb.width / 2);
+        text.attr("y", bb.height / 3);
+
+        gSel.select("rect")
+            .attr("width", bb.width + 20)
+            .attr("height", bb.height + 14)
+            .attr("x", - (bb.width + 20) / 2)
+            .attr("y", -bb.height / 1.1 - 4)
+            .attr("stroke", () => {
+                const side = d.data.side;
+                if (side === "left") return d.depth <= 2 ? branchColors.left1 : branchColors.left2;
+                return d.depth <= 2 ? branchColors.right1 : branchColors.right2;
+            });
+    });
+
+    // End-of-branch red dot
+    node.filter(d => !d.children && !d._children)
+        .append("circle")
+        .attr("class", "end-dot")
+        .attr("r", 5)
+        .attr("cx", d => d.y < 0 ? -70 : 70)
+        .attr("cy", 0);
+
+    // Auto-fit ONCE on load
+    setTimeout(() => {
+        const b = g.node().getBBox();
+        const fullWidth = document.getElementById("mindmap").clientWidth;
+        const fullHeight = 900;
+
+        const scale = Math.min(fullWidth / b.width, fullHeight / b.height) * 0.85;
+        const tx = (fullWidth - b.width * scale) / 2 - b.x * scale;
+        const ty = (fullHeight - b.height * scale) / 2 - b.y * scale;
+
+        svg.transition().duration(600)
+            .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+    }, 200);
+
+    // SEARCH
+    document.getElementById("searchBox").addEventListener("keyup", function() {
+        const q = this.value.toLowerCase();
+
+        node.classed("highlight", false);
+
+        if (q === "") return;
+
+        node.filter(d => d.data.Name.toLowerCase().includes(q))
+            .classed("highlight", true)
+            .each(d => {
+                svg.transition().duration(500)
+                    .call(zoom.transform,
+                        d3.zoomIdentity.translate(
+                            (svg.node().clientWidth / 2) - d.y * 1.2,
+                            (900 / 2) - d.x * 1.2
+                        ).scale(1.2)
+                    );
+            });
+    });
+
+});
+</script>
+
+</body>
+</html>
