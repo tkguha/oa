@@ -305,7 +305,7 @@ svg.call(zoom);
 /* ============================================================
    LOAD CSV AND BUILD HIERARCHY
    ============================================================ */
-d3.csv(CSV_URL).then(rows => {
+d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(rows => {
 
     /* Normalize rows */
     const data = rows.map(r => ({
