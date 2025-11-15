@@ -1,249 +1,295 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8" />
 <title>Open Access and Open Science Mindmap</title>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
-  body {
-    margin: 0;
-    font-family: "Segoe UI", Arial, sans-serif;
-    background: #f5f7fb;
+  :root{
+    --bg:#f4f6fa;
+    --header-bg:#0b63b6;
+    --font:"Segoe UI",Roboto,Arial,sans-serif;
+  }
+  html,body{
+    margin:0;
+    height:100%;
+    font-family:var(--font);
+    background:var(--bg);
   }
 
-  #container {
-    width: 100%;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
+  header{
+    background:var(--header-bg);
+    color:#fff;
+    padding:14px 18px;
+    text-align:center;
+    font-size:20px;
+    font-weight:700;
   }
 
-  #title {
-    flex: 0 0 auto;
-    background: #08306b;
-    color: #fff;
-    text-align: center;
-    padding: 10px 16px;
-    font-size: 20px;
-    font-weight: 600;
+  #canvas{
+    position:relative;
+    height:calc(100vh - 56px);
+    overflow:hidden;
   }
 
-  #canvas {
-    flex: 1 1 auto;
-    position: relative;
+  svg{
+    width:100%;
+    height:100%;
+    cursor:grab;
+    display:block;
   }
 
-  svg {
-    width: 100%;
-    height: 100%;
-    display: block;
-    cursor: grab;
+  /* search box */
+  #searchBox{
+    position:absolute;
+    left:50%;
+    top:10px;
+    transform:translateX(-50%);
+    width:320px;
+    padding:8px 10px;
+    border-radius:8px;
+    border:1px solid #cfd8e3;
+    box-shadow:0 1px 4px rgba(0,0,0,0.12);
+    z-index:20;
   }
 
-  .tooltip {
-    position: absolute;
-    padding: 6px 8px;
-    background: #fff;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-    font-size: 12px;
-    max-width: 280px;
-    pointer-events: none;
-    display: none;
-    z-index: 20;
+  /* credit note (top-right, stays in front) */
+  #credits{
+    position:absolute;
+    right:14px;
+    top:10px;
+    max-width:260px;
+    background:#ffffff;
+    border-radius:8px;
+    padding:8px 10px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.12);
+    font-size:12px;
+    line-height:1.4;
+    z-index:21;
+  }
+  #credits b{display:block;margin-bottom:4px;}
+
+  /* tooltip */
+  #tooltip{
+    position:absolute;
+    padding:8px 10px;
+    background:rgba(0,0,0,0.85);
+    color:#fff;
+    font-size:13px;
+    border-radius:6px;
+    max-width:320px;
+    display:none;
+    z-index:30;
+    pointer-events:none;
   }
 
-  .node rect {
-    rx: 10;
-    ry: 10;
-    stroke-width: 1.5px;
-    fill: #ffffff;
-    stroke: #90a4ae;
-    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));
+  /* nodes */
+  .node text{
+    font-size:14px;
+    pointer-events:none;
+  }
+  .node rect{
+    rx:10; ry:10;
+    stroke-width:2;
+    filter:drop-shadow(0 1px 2px rgba(0,0,0,0.16));
+  }
+  .node-number{
+    font-size:11px;
+    font-weight:600;
+    fill:#555;
   }
 
-  .node text {
-    font-size: 14px;
-    pointer-events: none;
-    fill: #102a43;
+  .link{
+    fill:none;
+    stroke-width:2px;
+    opacity:0.9;
   }
 
-  .node.link-node text {
-    fill: #0b63b6;
-    text-decoration: underline;
+  .end-dot{
+    fill:#d32f2f;
+    stroke:#b00000;
+    stroke-width:1.5;
   }
 
-  .link {
-    fill: none;
-    stroke-width: 2px;
-    stroke: #cfd8e3;
-    opacity: 0.95;
+  .highlight rect{
+    stroke:#ffeb3b !important;
+    stroke-width:4px !important;
   }
 
-  .end-dot {
-    fill: #d32f2f;
-    stroke: #b00000;
-    stroke-width: 1.5;
+  /* linked nodes: underline + blue */
+  .linked text{
+    text-decoration:underline;
+    fill:#0b63b6;
   }
 </style>
 </head>
+
 <body>
-<div id="container">
-  <div id="title">Open Access and Open Science</div>
-  <div id="canvas">
-    <div id="tooltip" class="tooltip"></div>
-    <svg>
-      <g id="links-layer"></g>
-      <g id="nodes-layer"></g>
-    </svg>
+<header>Open Access and Open Science</header>
+
+<div id="canvas">
+  <input id="searchBox" type="text" placeholder="Search node..." />
+  <div id="credits">
+    <b>Credits</b>
+    Dr. Tamal Kumar Guha,<br/>
+    Librarian, IIT Guwahati<br/><br/>
+    Presented at a Workshop on 22nd Nov. 2025 at NEHU, DLISc<br/>
+    <i>Workshop Title:</i> Research Support Services: Role of Libraries and
+    Library Professionals in the Digital Landscape
   </div>
+  <div id="tooltip"></div>
+  <svg>
+    <g id="links-layer"></g>
+    <g id="nodes-layer"></g>
+  </svg>
 </div>
 
 <script>
-// === CONFIG ===
-const CSV_URL = "https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv";
+// ================== CONFIG ==================
+const CSV_URL =
+  "https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv";
 
-// layout spacing
-const VERT_SPACING   = 40;   // base vertical spacing (before anti-overlap)
-const DEPTH_SPACING  = 140;  // horizontal distance between depth levels
-const MIN_VERTICAL_GAP = 55; // minimum vertical gap between boxes in same depth
+const ROOT_ID = "1";
+const LEFT_COUNT = 2;           // first 2 main branches on left
+const VERT_SPACING = 50;        // vertical gap between nodes
+const DEPTH_SPACING = 160;      // horizontal distance per depth
+const MIN_SEP = 40;             // min vertical separation (anti-overlap)
 
-// branch colors (balanced layout: half left, half right)
-const BRANCH_COLORS = [
-  "#1976d2", // branch 0
-  "#2e7d32", // branch 1
-  "#fb8c00", // branch 2
-  "#6a1b9a"  // branch 3
+const BRANCH_BASE = [
+  "#1976d2", // left branch 1 (blue)
+  "#2e7d32", // left branch 2 (green)
+  "#fb8c00", // right branch 1 (orange)
+  "#6a1b9a"  // right branch 2 (purple)
 ];
+const ROOT_FILL  = "#08306b";
+const ROOT_STROKE= "#08306b";
 
-// === SETUP SVG / LAYERS / ZOOM ===
-const svg   = d3.select("svg");
-const linkLayer = d3.select("#links-layer");
-const nodeLayer = d3.select("#nodes-layer");
-const tooltip = d3.select("#tooltip");
+// ================== SVG & ZOOM ==================
+const svg        = d3.select("svg");
+const linkLayer  = d3.select("#links-layer");
+const nodeLayer  = d3.select("#nodes-layer");
+const tooltip    = d3.select("#tooltip");
+const searchBox  = document.getElementById("searchBox");
 
 const zoom = d3.zoom()
   .scaleExtent([0.25, 3])
   .on("zoom", (event) => {
-    linkLayer.attr("transform", event.transform);
-    nodeLayer.attr("transform", event.transform);
+    const t = event.transform;
+    linkLayer.attr("transform", t);
+    nodeLayer.attr("transform", t);
   });
 
 svg.call(zoom);
 
-// === LOAD CSV AND BUILD HIERARCHY ===
-d3.csv(CSV_URL).then(data => {
-  // normalize
-  data.forEach(d => {
-    d.node_id  = (d.node_id  || "").trim();
-    d.parent_id= (d.parent_id|| "").trim();
-    d.topic    = (d.topic    || "").trim();
-    d.links    = (d.links    || "").trim();
-    d.children = [];
+const getWidth  = () => svg.node().clientWidth;
+const getHeight = () => svg.node().clientHeight;
+
+// ================== LOAD CSV ==================
+d3.csv(CSV_URL).then(raw => {
+
+  // Normalise columns
+  const rows = raw.map(r => ({
+    id:       (r.node_id || "").trim(),
+    parentId: (r.parent_id || "").trim(),
+    level:    +r.level || 0,
+    name:     (r.topic || "").trim(),
+    link:     (r.links || "").trim()
+  }));
+
+  // Build map and parent-child relationships
+  const byId = new Map();
+  rows.forEach(r => {
+    if (!r.id) return;
+    byId.set(r.id, {...r, children: []});
   });
 
-  // map by id
-  const byId = new Map();
-  data.forEach(d => { if (d.node_id) byId.set(d.node_id, d); });
-
-  // find root (no parent_id)
-  let rootData = data.find(d => !d.parent_id);
-  if (!rootData) rootData = data[0]; // fallback
-
-  // build children arrays
-  data.forEach(d => {
-    if (d.parent_id && byId.has(d.parent_id)) {
-      byId.get(d.parent_id).children.push(d);
+  let rootData = null;
+  byId.forEach(node => {
+    if (!node.parentId) {
+      rootData = node;
+    } else if (byId.has(node.parentId)) {
+      byId.get(node.parentId).children.push(node);
     }
   });
 
-  const root = d3.hierarchy(rootData, d => d.children && d.children.length ? d.children : null);
-  root.x0 = 0;
-  root.y0 = 0;
+  if (!rootData) {
+    alert("No root node found (row with empty parent_id).");
+    return;
+  }
 
-  // Assign balanced sides & branch index for first-level children
-  if (root.children && root.children.length > 0) {
-    const mid = Math.ceil(root.children.length / 2); // half left, half right
+  const root = d3.hierarchy(rootData, d => d.children && d.children.length ? d.children : null);
+
+  // Auto-number nodes sequentially (pre-order)
+  root.descendants().forEach((d, i) => {
+    d.data.seq = i + 1;
+  });
+
+  // Assign branch index + side
+  if (root.children) {
     root.children.forEach((c, i) => {
-      const side = (i < mid) ? -1 : 1; // left (negative y), right (positive y)
-      const branchIndex = i % BRANCH_COLORS.length;
-      assignSideAndBranch(c, side, branchIndex);
+      const side = (i < LEFT_COUNT) ? -1 : 1;
+      const branchIndex = i % BRANCH_BASE.length;
+      assignBranchAndSide(c, branchIndex, side);
     });
   }
 
-  // collapse all children initially
-  root.children && root.children.forEach(collapse);
-  // optionally open first level
-  root.children && root.children.forEach(c => { c.children = c._children; c._children = null; });
+  function assignBranchAndSide(node, branch, side) {
+    node.data.branch = branch;
+    node.data.side   = side;
+    node.children   ?.forEach(ch => assignBranchAndSide(ch, branch, side));
+    node._children  ?.forEach(ch => assignBranchAndSide(ch, branch, side));
+  }
+
+  // collapse all initially except first level
+  root.children?.forEach(collapseAll);
+  root.children?.forEach(c => { c.children = c._children; c._children = null; });
+
+  const treeLayout = d3.tree().nodeSize([VERT_SPACING, 100]);
 
   update(root);
   setTimeout(autoFit, 600);
 
-  function assignSideAndBranch(node, side, branchIndex) {
-    node.data._side = side;
-    node.data._branch = branchIndex;
-    if (node.children) node.children.forEach(c => assignSideAndBranch(c, side, branchIndex));
-    if (node._children) node._children.forEach(c => assignSideAndBranch(c, side, branchIndex));
-  }
-
-  function collapse(node){
-    if (node.children) {
-      node._children = node.children;
-      node._children.forEach(collapse);
-      node.children = null;
-    }
-  }
-
-  // main redraw function
+  // ================== UPDATE (RENDER) ==================
   function update(source) {
-    const treeLayout = d3.tree().nodeSize([VERT_SPACING, 1]);
+    // layout
     treeLayout(root);
-
     const nodes = root.descendants();
     const links = root.links();
 
-    // set x,y from tree; then adjust y by side, and run anti-overlap on x
+    // horizontal balanced layout using side
     nodes.forEach(d => {
-      const side = d.data._side !== undefined ? d.data._side
-                  : (d.parent ? d.parent.data._side || 1 : 1);
-      d.y = d.depth * DEPTH_SPACING * side;
-      d.x = d.x; // from layout
+      const side = d.data.side !== undefined
+        ? d.data.side
+        : (d.parent ? d.parent.data.side || 1 : 1);
+      d.screenX = d.x;
+      d.screenY = d.depth * DEPTH_SPACING * side;
     });
 
-    // physics-ish anti-overlap per depth (1D vertical relaxation)
-    const byDepth = d3.group(nodes, d => d.depth);
-    byDepth.forEach(group => {
-      group.sort((a,b) => a.x - b.x);
+    // anti-overlap: adjust x per depth
+    const depthGroups = d3.group(nodes, d => d.depth);
+    depthGroups.forEach(group => {
+      group.sort((a,b) => a.screenX - b.screenX);
       for (let i = 1; i < group.length; i++) {
         const prev = group[i-1];
         const curr = group[i];
-        const gap = curr.x - prev.x;
-        if (gap < MIN_VERTICAL_GAP) {
-          const shift = MIN_VERTICAL_GAP - gap;
-          curr.x += shift;
-          // also shift all deeper nodes in same subtree by same amount
-          shiftSubtree(curr, shift);
+        if (curr.screenX - prev.screenX < MIN_SEP) {
+          curr.screenX = prev.screenX + MIN_SEP;
         }
       }
     });
 
-    function shiftSubtree(node, deltaX) {
-      node.descendants().forEach(n => { n.x += deltaX; });
-    }
-
-    // ================= NODES =================
+    // ----- NODES -----
     const nodeSel = nodeLayer.selectAll("g.node")
-      .data(nodes, d => d.data.node_id);
+      .data(nodes, d => d.data.id);
 
     const nodeEnter = nodeSel.enter()
       .append("g")
       .attr("class","node")
-      .attr("transform", d => `translate(${source.y0 || 0},${source.x0 || 0})`)
+      .attr("transform", `translate(${source.y0 || 0},${source.x0 || 0})`)
       .style("cursor","pointer")
       .on("click", (event, d) => {
-        if (d.data.links) {
-          window.open(d.data.links, "_blank", "noopener");
+        if (d.data.link) {
+          window.open(d.data.link, "_blank", "noopener");
         }
       })
       .on("dblclick", (event, d) => {
@@ -256,130 +302,211 @@ d3.csv(CSV_URL).then(data => {
           d._children = null;
         }
         update(d);
-      });
+      })
+      .on("mouseover", (event, d) => {
+        if (!d.data.link) return;
+        tooltip.style("display","block")
+               .html(d.data.link)
+               .style("left", (event.pageX + 12) + "px")
+               .style("top",  (event.pageY + 12) + "px");
+      })
+      .on("mousemove", (event) => {
+        tooltip.style("left", (event.pageX + 12) + "px")
+               .style("top",  (event.pageY + 12) + "px");
+      })
+      .on("mouseout", () => tooltip.style("display","none"));
 
-    // text first (centered), then rect size based on bbox
+    // base rect & text
+    nodeEnter.append("rect")
+      .attr("width", 40)
+      .attr("height", 20)
+      .attr("x", -20)
+      .attr("y", -10)
+      .style("opacity",0);
+
+    // node number
     nodeEnter.append("text")
-      .attr("dy","0.35em")
-      .attr("text-anchor","middle")
-      .text(d => d.data.topic || d.data.node_id || "(no label)");
+      .attr("class","node-number")
+      .attr("text-anchor","end")
+      .attr("x",-6)
+      .attr("y",-2)
+      .text(d => d.data.seq + ".");
 
+    // label text
+    nodeEnter.append("text")
+      .attr("class","label-text")
+      .attr("text-anchor","start")
+      .attr("x",0)
+      .attr("y",4)
+      .text(d => d.data.name);
+
+    // size rect to fit text
     nodeEnter.each(function(d){
-      const sel = d3.select(this);
-      const textNode = sel.select("text").node();
-      const bb = textNode.getBBox();
-      const padX = 12, padY = 8;
-      const w = bb.width + padX*2;
-      const h = bb.height + padY*2;
+      const gSel = d3.select(this);
+      const num  = gSel.select(".node-number").node().getBBox();
+      const lab  = gSel.select(".label-text").node().getBBox();
+      const padX = 10, padY = 6;
+      const width  = num.width + lab.width + padX*2 + 6;
+      const height = Math.max(num.height, lab.height) + padY*2;
 
-      const branchIndex = d.data._branch ?? (d.parent ? d.parent.data._branch ?? 0 : 0);
-      const baseCol = BRANCH_COLORS[branchIndex % BRANCH_COLORS.length];
-      const depthFactor = Math.min(d.depth / 4, 0.6);
-      const fillCol = d.depth === 0 ? "#08306b" : d3.interpolateRgb(baseCol, "#ffffff")(depthFactor);
-      const strokeCol = d.depth === 0 ? "#08306b" : d3.color(baseCol).darker(0.7);
+      const {fill,stroke} = colorFor(d);
 
-      sel.insert("rect","text")
-        .attr("x", -w/2)
-        .attr("y", -h/2)
-        .attr("width", w)
-        .attr("height", h)
-        .attr("rx", 10)
-        .attr("ry", 10)
-        .style("fill", fillCol)
-        .style("stroke", strokeCol);
+      gSel.select("rect")
+        .attr("x", -width/2)
+        .attr("y", -height/2)
+        .attr("width", width)
+        .attr("height", height)
+        .style("fill", d.depth===0 ? ROOT_FILL : fill)
+        .style("stroke", d.depth===0 ? ROOT_STROKE : stroke);
+
+      // center numbering+label
+      const offsetLeft = -width/2 + padX;
+      gSel.select(".node-number")
+        .attr("x", offsetLeft + num.width)
+        .attr("y", 4 - height/2 + padY);
+
+      gSel.select(".label-text")
+        .attr("x", offsetLeft + num.width + 6)
+        .attr("y", 4 - height/2 + padY);
 
       if (d.depth === 0) {
-        sel.select("text").style("fill","#ffffff").style("font-weight","700");
-      }
-
-      // mark link nodes
-      if (d.data.links) {
-        sel.classed("link-node", true);
-      }
-
-      // end-of-branch red dot
-      const side = d.data._side !== undefined ? d.data._side
-                  : (d.parent ? d.parent.data._side || 1 : 1);
-      const dotX = side >= 0 ? (w / 2 + 10) : -(w / 2 + 10);
-      const isLeaf = !d.children && !d._children;
-
-      if (isLeaf) {
-        sel.append("circle")
-          .attr("class","end-dot")
-          .attr("r",5)
-          .attr("cx", dotX)
-          .attr("cy", 0);
+        gSel.selectAll("text")
+          .style("fill","#ffffff")
+          .style("font-weight","600");
+      } else if (d.data.link) {
+        gSel.classed("linked", true);
       }
     });
 
-    // transition nodes to new positions
     const nodeMerge = nodeEnter.merge(nodeSel);
 
-    nodeMerge.transition().duration(200)
-      .attr("transform", d => `translate(${d.y},${d.x})`);
+    nodeMerge.transition().duration(NODE_DUR)
+      .attr("transform", d => `translate(${d.screenY},${d.screenX})`);
 
     nodeSel.exit()
-      .transition().duration(150)
+      .transition().duration(NODE_DUR)
       .style("opacity",0)
       .remove();
 
-    // ================= LINKS =================
+    // update leaf dots
+    nodeMerge.each(function(d){
+      const gSel = d3.select(this);
+      gSel.select(".end-dot").remove();
+      if (!d.children && !d._children) {
+        const rect = gSel.select("rect").node().getBBox();
+        const side = d.data.side ?? (d.parent ? d.parent.data.side || 1 : 1);
+        gSel.append("circle")
+          .attr("class","end-dot")
+          .attr("r",5)
+          .attr("cx", side >= 0 ? rect.width/2 + rect.x + 10 : rect.x - 10)
+          .attr("cy",0);
+      }
+    });
+
+    // ----- LINKS -----
     const linkSel = linkLayer.selectAll("path.link")
-      .data(links, d => d.target.data.node_id);
+      .data(links, d => d.target.data.id);
 
     const linkEnter = linkSel.enter()
       .append("path")
       .attr("class","link")
-      .attr("d", d => linkCurve(source, source));
+      .attr("d", d => linkPath(source, source))
+      .style("stroke-dasharray", function(){
+        const L = this.getTotalLength ? this.getTotalLength() : 0;
+        return `${L} ${L}`;
+      })
+      .style("stroke-dashoffset", function(){
+        return this.getTotalLength ? this.getTotalLength() : 0;
+      });
 
     linkEnter.merge(linkSel)
-      .transition().duration(200)
-      .attr("d", d => linkCurve(d.source, d.target));
+      .style("stroke", d => colorFor(d.target).stroke)
+      .transition().duration(LINK_DUR)
+      .attr("d", d => linkPath(d.source, d.target))
+      .style("stroke-dashoffset",0);
 
     linkSel.exit()
-      .transition().duration(150)
+      .transition().duration(LINK_DUR)
       .style("opacity",0)
       .remove();
 
-    // save positions
-    nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
+    // store old positions
+    nodes.forEach(d => { d.x0 = d.screenX; d.y0 = d.screenY; });
   }
 
-  // Mindmap-style curve
-  function linkCurve(s, d) {
-    const x1 = s.x, y1 = s.y;
-    const x2 = d.x, y2 = d.y;
-    const k = 0.55;
-    const cx1 = y1 + (y2 - y1) * k;
-    const cx2 = y2 - (y2 - y1) * k;
-    return `M${y1},${x1} C${cx1},${x1} ${cx2},${x2} ${y2},${x2}`;
+  // S-curve for links
+  function linkPath(s, d){
+    const sx = s.screenY ?? s.y0;
+    const sy = s.screenX ?? s.x0;
+    const tx = d.screenY ?? d.y0;
+    const ty = d.screenX ?? d.x0;
+    const dx = (tx - sx) * 0.55;
+    return `M${sx},${sy} C${sx+dx},${sy} ${tx-dx},${ty} ${tx},${ty}`;
   }
 
-  // auto-fit whole diagram once at load
-  function autoFit() {
-    const bboxNodes = nodeLayer.node().getBBox();
-    const margin = 60;
-    const width = svg.node().clientWidth;
-    const height = svg.node().clientHeight;
+  // branch colour (lighter with depth)
+  function colorFor(d){
+    if (d.depth === 0) {
+      return {fill:ROOT_FILL, stroke:ROOT_STROKE};
+    }
+    const idx = d.data.branch ?? 0;
+    const base = BRANCH_BASE[idx % BRANCH_BASE.length];
+    const t = Math.min(d.depth/5, 0.6);
+    return {
+      fill:   d3.interpolateRgb(base,"#ffffff")(t),
+      stroke: d3.color(base).darker(0.8)
+    };
+  }
 
-    const scale = Math.min(
-      (width  - margin) / bboxNodes.width,
-      (height - margin) / bboxNodes.height
+  // auto-fit once at start
+  function autoFit(){
+    try{
+      const box = nodeLayer.node().getBBox();
+      const margin = 80;
+      const w = getWidth();
+      const h = getHeight();
+      const scale = Math.min((w-margin)/box.width, (h-margin)/box.height);
+      const s = Math.max(0.25, Math.min(scale, 1.6));
+      const tx = (w - box.width*s)/2 - box.x*s;
+      const ty = (h - box.height*s)/2 - box.y*s;
+      svg.call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(s));
+    }catch(e){
+      console.warn("autoFit error", e);
+    }
+  }
+
+  // =============== SEARCH ===============
+  searchBox.addEventListener("input", () => {
+    const q = searchBox.value.trim().toLowerCase();
+    const nodes = nodeLayer.selectAll("g.node");
+    nodes.classed("highlight", false);
+    if (!q) return;
+
+    const matches = nodes.filter(d =>
+      (d.data.name || "").toLowerCase().includes(q)
     );
 
-    const s = Math.max(0.25, Math.min(scale, 1.8));
-    const tx = (width  - bboxNodes.width  * s) / 2 - bboxNodes.x * s;
-    const ty = (height - bboxNodes.height * s) / 2 - bboxNodes.y * s;
+    matches.classed("highlight", true);
 
-    svg.call(
-      zoom.transform,
-      d3.zoomIdentity.translate(tx, ty).scale(s)
-    );
-  }
+    const first = matches.datum();
+    if (first) {
+      // zoom to first match
+      const box = nodes.filter(d => d.data.id === first.data.id)
+                       .node().getBBox();
+      const cx = box.x + box.width/2;
+      const cy = box.y + box.height/2;
+      const w = getWidth(), h = getHeight();
+      const scale = Math.min(1.6, Math.max(0.6,
+        Math.min(w/(box.width*6), h/(box.height*6))
+      ));
+      const tx = w/2 - cx*scale;
+      const ty = h/2 - cy*scale;
+      svg.transition().duration(400)
+         .call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(scale));
+    }
+  });
 
-}).catch(err => {
-  console.error("Error loading CSV:", err);
-});
+}); // end csv load
 </script>
 </body>
 </html>
