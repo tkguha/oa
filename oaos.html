@@ -512,24 +512,52 @@ function handleSearch(){
   const first = matches.datum();
   if (first) centerOn(first);
 }
+ /* ---------------- helper ---------------- */ 
+function inlineStyles(svg) {
+  const styleSheets = [...document.styleSheets];
 
+  let cssText = "";
+  styleSheets.forEach(sheet => {
+    try {
+      const rules = sheet.cssRules;
+      if (rules) {
+        for (let r of rules) {
+          cssText += r.cssText;
+        }
+      }
+    } catch (e) {
+      // Ignore CORS-restricted stylesheets
+    }
+  });
+
+  const styleElem = document.createElementNS("http://www.w3.org/2000/svg", "style");
+  styleElem.textContent = cssText;
+  svg.insertBefore(styleElem, svg.firstChild);
+}
+
+
+
+  
 /* ---------------- EXPORT ---------------- */
-function exportSVG(){
+function exportSVG() {
+  const svgNode = svg.node().cloneNode(true);
+
+  inlineStyles(svgNode);
+
+  // Compute full bounding box of the actual tree
   const box = g.node().getBBox();
+  const margin = 50;
 
-  const svgClone = svg.node().cloneNode(true);
-  const inner = svgClone.querySelector("g");
+  svgNode.setAttribute("viewBox",
+    `${box.x - margin} ${box.y - margin} ${box.width + margin*2} ${box.height + margin*2}`
+  );
+  svgNode.setAttribute("width", box.width + margin*2);
+  svgNode.setAttribute("height", box.height + margin*2);
 
-  const outer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  outer.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-  outer.setAttribute("width", box.width + 100);
-  outer.setAttribute("height", box.height + 100);
-  outer.setAttribute("viewBox", `${box.x - 50} ${box.y - 50} ${box.width + 100} ${box.height + 100}`);
+  const serializer = new XMLSerializer();
+  const source = serializer.serializeToString(svgNode);
 
-  outer.appendChild(inner);
-
-  const data = new XMLSerializer().serializeToString(outer);
-  const blob = new Blob([data], { type: "image/svg+xml" });
+  const blob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement("a");
@@ -540,25 +568,27 @@ function exportSVG(){
   URL.revokeObjectURL(url);
 }
 
-function exportPNG(){
+function exportPNG() {
+  const svgNode = svg.node().cloneNode(true);
+
+  inlineStyles(svgNode);
+
   const box = g.node().getBBox();
+  const margin = 50;
 
-  const tmp = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  const inner = svg.node().querySelector("g").cloneNode(true);
+  svgNode.setAttribute("viewBox",
+    `${box.x - margin} ${box.y - margin} ${box.width + margin*2} ${box.height + margin*2}`
+  );
+  svgNode.setAttribute("width", box.width + margin*2);
+  svgNode.setAttribute("height", box.height + margin*2);
 
-  tmp.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-  tmp.setAttribute("width", box.width + 100);
-  tmp.setAttribute("height", box.height + 100);
-  tmp.setAttribute("viewBox", `${box.x - 50} ${box.y - 50} ${box.width + 100} ${box.height + 100}`);
-
-  tmp.appendChild(inner);
-
-  const data = new XMLSerializer().serializeToString(tmp);
-  const svgBlob = new Blob([data], { type: "image/svg+xml" });
+  const serializer = new XMLSerializer();
+  const source = serializer.serializeToString(svgNode);
+  const svgBlob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
   const url = URL.createObjectURL(svgBlob);
 
   const img = new Image();
-  img.onload = () => {
+  img.onload = function () {
     const canvas = document.createElement("canvas");
     canvas.width = img.width;
     canvas.height = img.height;
@@ -570,15 +600,19 @@ function exportPNG(){
 
     canvas.toBlob(blob => {
       const url2 = URL.createObjectURL(blob);
+
       const a = document.createElement("a");
       a.href = url2;
       a.download = "oaos_tree.png";
       a.click();
+
       URL.revokeObjectURL(url2);
     });
   };
+
   img.src = url;
 }
+
 
 </script>
 </body>
