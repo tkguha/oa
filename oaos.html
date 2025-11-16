@@ -111,6 +111,7 @@
     height:100%;
     cursor:grab;
   }
+
   svg.minimap{
     position:absolute;
     right:16px;
@@ -132,10 +133,10 @@
   .node text{
     font-size:14px;
     fill:#0f1c2e;
-    pointer-events:none;
+    pointer-events:auto; /* important for option D */
   }
 
-  /* LINKED NODES (underlined + pointer cursor) */
+  /* LINKED NODES (text clickable only) */
   .node.linked text{
     fill:#1f3a65;
     text-decoration:underline;
@@ -216,11 +217,8 @@ svg.call(zoom);
 function width(){ return svg.node().clientWidth; }
 function height(){ return svg.node().clientHeight; }
 
-/* Vertical tree layout (deep-tree optimized) */
-const treeLayout = d3.tree()
-  .nodeSize([55, 240]);
+const treeLayout = d3.tree().nodeSize([55, 240]);
 
-/* Level-colored backgrounds */
 function levelColor(level){
   if (level === 0) return "var(--level0)";
   if (level === 1) return "var(--level1)";
@@ -229,7 +227,7 @@ function levelColor(level){
   return "var(--level4)";
 }
 
-d3.csv("https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv").then(raw => {
+d3.csv(CSV_URL).then(raw => {
   const rows = raw.map(r => ({
     id: (r.node_id || "").trim(),
     parentId: (r.parent_id || "").trim(),
@@ -293,6 +291,8 @@ function update(source){
     .attr("class","node")
     .attr("transform", `translate(${source.y0},${source.x0})`)
     .style("cursor","pointer")
+
+    /* TOOLTIP HANDLERS */
     .on("mouseenter", (event,d)=>{
         tooltip.style("display","block")
                .html(`<b>${d.data.label}</b> (Level ${d.data.level})`);
@@ -303,61 +303,54 @@ function update(source){
     })
     .on("mouseleave",()=>tooltip.style("display","none"))
 
-    
-.on("click", (event, d) => {
-  // Click on background/rect should expand/collapse
-  event.stopPropagation();
+    /* RECT CLICK = EXPAND/COLLAPSE (Option D) */
+    .on("click", (event, d) => {
+      event.stopPropagation();
 
-  if (d.children) {
-    d._children = d.children;
-    d.children = null;
-  } else {
-    d.children = d._children;
-    d._children = null;
-  }
+      if (d.children) {
+        d._children = d.children;
+        d.children = null;
+      } else {
+        d.children = d._children;
+        d._children = null;
+      }
+      update(d);
+      centerOn(d);
+    });
 
-  update(d);
-  centerOn(d);
-});
-
-
-
-
-  
-  /* LABEL + SUFFIX NUMBERING: topic (level) */
+  /* LABEL + SUFFIX NUMBERING */
   nodeEnter.append("text")
     .attr("text-anchor","middle")
     .text(d => `${d.data.label} (${d.data.level})`);
 
   nodeEnter.each(function(d){
-    const t = d3.select(this).select("text").node().getBBox();
+    const group = d3.select(this);
+    const t = group.select("text").node().getBBox();
     const padX = 14, padY = 7;
     const w = t.width + padX*2;
     const h = t.height + padY*2;
 
-    d3.select(this)
-      .insert("rect","text")
+    /* Colored rectangle by level */
+    group.insert("rect","text")
       .attr("x", -w/2)
       .attr("y", -h/2)
       .attr("width", w)
       .attr("height", h)
       .style("fill", levelColor(d.data.level));
 
-    d3.select(this).select("text")
+    group.select("text")
       .attr("y", t.height/4);
 
-    if (d.data.link) d3.select(this).classed("linked", true);
+    /* TEXT CLICK = OPEN LINK (Option D) */
+    if (d.data.link) {
+      group.classed("linked", true);
+      group.select("text").on("click", (event) => {
+        event.stopPropagation();
+        window.open(d.data.link, "_blank");
+      });
+    }
   });
-  // If node has a link, text becomes clickable NEW PART
-if (d.data.link) {
-  d3.select(this).select("text")
-    .style("cursor", "pointer")
-    .on("click", (event) => {
-      event.stopPropagation();     // prevent expanding
-      window.open(d.data.link, "_blank");
-    });
-}
-// NEW PART
+
   const nodeMerge = nodeEnter.merge(nodeSel);
 
   nodeMerge.transition()
@@ -366,11 +359,11 @@ if (d.data.link) {
     .attr("transform", d => `translate(${d.y},${d.x})`);
 
   nodeMerge.each(function(d){
-    const g = d3.select(this);
-    g.select("circle.end-dot").remove();
+    const group = d3.select(this);
+    group.select("circle.end-dot").remove();
     if(!d.children && !d._children){
-      const r = g.select("rect").node().getBBox();
-      g.append("circle")
+      const r = group.select("rect").node().getBBox();
+      group.append("circle")
         .attr("class","end-dot")
         .attr("r",5)
         .attr("cx", r.x + r.width/2 + 12)
