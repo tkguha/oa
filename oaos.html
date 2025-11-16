@@ -1,0 +1,587 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Open Access & Open Science — Interactive Tree</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<style>
+  :root{
+    --bg:#f7f9fc;
+    --header-bg:#1f3a65;
+    --header-fg:#ffffff;
+    --node-stroke:#1f3a65;
+    --link-stroke:#8aa2c1;
+    --font:"Segoe UI",Roboto,Arial,sans-serif;
+
+    /* gradient level colors */
+    --level0:#1f3a65;
+    --level1:#dfe7f5;
+    --level2:#e8f0ff;
+    --level3:#f3f6ff;
+    --level4:#fafbff;
+  }
+
+  body{
+    margin:0;
+    font-family:var(--font);
+    background:var(--bg);
+  }
+
+  header{
+    background:var(--header-bg);
+    color:white;
+    text-align:center;
+    padding:14px 0;
+    font-size:20px;
+    font-weight:600;
+    position:relative;
+    box-shadow:0 2px 4px rgba(0,0,0,0.2);
+  }
+
+  header .controls{
+    position:absolute;
+    left:12px;
+    top:50%;
+    transform:translateY(-50%);
+    display:flex;
+    gap:6px;
+  }
+
+  header button{
+    background:white;
+    border:1px solid var(--header-bg);
+    color:var(--header-bg);
+    padding:5px 10px;
+    border-radius:6px;
+    cursor:pointer;
+    font-size:12px;
+  }
+
+  #canvas{
+    height:calc(100vh - 60px);
+    position:relative;
+    overflow:hidden;
+  }
+
+  #searchBox{
+    position:absolute;
+    top:12px;
+    left:50%;
+    transform:translateX(-50%);
+    width:320px;
+    padding:8px 10px;
+    border-radius:8px;
+    border:1px solid #cfd8e3;
+    background:white;
+    font-size:14px;
+    z-index:20;
+    box-shadow:0 1px 4px rgba(0,0,0,0.15);
+  }
+
+  #credits{
+    position:absolute;
+    top:12px;
+    right:16px;
+    background:white;
+    padding:10px 12px;
+    border-radius:8px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.15);
+    font-size:12px;
+    line-height:1.4;
+    z-index:20;
+  }
+
+  svg.main{
+    width:100%;
+    height:100%;
+    cursor:grab;
+  }
+
+  svg.minimap{
+    position:absolute;
+    bottom:16px;
+    right:16px;
+    width:240px;
+    height:160px;
+    background:white;
+    border:1px solid #cfd8e3;
+    z-index:10;
+    box-shadow:0 2px 6px rgba(0,0,0,0.12);
+  }
+
+  #tooltip{
+    position:absolute;
+    background:#000000cc;
+    color:white;
+    padding:6px 8px;
+    font-size:12px;
+    border-radius:6px;
+    display:none;
+    pointer-events:none;
+    z-index:50;
+  }
+
+  .node rect{
+    rx:10;
+    ry:10;
+    stroke:var(--node-stroke);
+    stroke-width:2px;
+    filter:drop-shadow(0 1px 2px rgba(0,0,0,0.15));
+  }
+
+  .node text{
+    font-size:14px;
+    pointer-events:auto;
+  }
+
+  .node.linked text{
+    fill:#1f3a65;
+    text-decoration:underline;
+    cursor:pointer;
+  }
+
+  .link{
+    fill:none;
+    stroke:var(--link-stroke);
+    stroke-width:2px;
+    opacity:0.9;
+  }
+
+  .end-dot{
+    fill:#c62828;
+    stroke:#8e0000;
+    stroke-width:1.4px;
+  }
+
+  .highlight rect{
+    stroke:#ffeb3b!important;
+    stroke-width:4px!important;
+  }
+</style>
+</head>
+
+<body>
+<header>
+  <div class="controls">
+    <button id="btnExpand">Expand</button>
+    <button id="btnCollapse">Collapse</button>
+    <button id="btnFit">Fit</button>
+    <button id="btnExportSVG">SVG</button>
+    <button id="btnExportPNG">PNG</button>
+  </div>
+  Open Access & Open Science — Interactive Tree
+</header>
+
+<div id="canvas">
+  <input id="searchBox" placeholder="Search node..." />
+  <div id="credits">
+    <b>Credits</b><br>
+    Dr. Tamal Kumar Guha<br>
+    IIT Guwahati<br><br>
+    Presented at NEHU DLISc<br>
+    Nov 22, 2025
+  </div>
+
+  <div id="tooltip"></div>
+
+  <svg class="main"><g id="tree"></g></svg>
+  <svg class="minimap">
+    <g id="miniLinks"></g>
+    <g id="miniNodes"></g>
+  </svg>
+</div>
+
+<script>
+const CSV_URL =
+ "https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv";
+
+const svg = d3.select("svg.main");
+const g = d3.select("#tree");
+const tooltip = d3.select("#tooltip");
+
+const miniSvg = d3.select("svg.minimap");
+const miniLinks = d3.select("#miniLinks");
+const miniNodes = d3.select("#miniNodes");
+
+let root;
+
+const zoom = d3.zoom()
+  .scaleExtent([0.3, 2.2])
+  .on("zoom", (event) => {
+    g.attr("transform", event.transform);
+  });
+svg.call(zoom);
+
+function width(){ return svg.node().clientWidth; }
+function height(){ return svg.node().clientHeight; }
+
+const treeLayout = d3.tree().nodeSize([55, 240]);
+
+function levelColor(level){
+  if (level === 0) return "var(--level0)";
+  if (level === 1) return "var(--level1)";
+  if (level === 2) return "var(--level2)";
+  if (level === 3) return "var(--level3)";
+  return "var(--level4)";
+}
+
+/* --------------------- CSV LOAD --------------------- */
+d3.csv(CSV_URL).then(raw => {
+  const rows = raw.map(r => ({
+    id: (r.node_id || "").trim(),
+    parentId: (r.parent_id || "").trim(),
+    label: (r.topic || "").trim(),
+    link: (r.links || "").trim(),
+    level: +r.level || 0
+  })).filter(r => r.id);
+
+  const map = new Map();
+  rows.forEach(r => map.set(r.id, {...r, children: []}));
+
+  let rootData = null;
+  map.forEach(n => {
+    if (!n.parentId) rootData = n;
+    else if (map.has(n.parentId)) map.get(n.parentId).children.push(n);
+  });
+
+  root = d3.hierarchy(rootData, d => d.children.length ? d.children : null);
+  root.x0 = 0; root.y0 = 0;
+
+  collapse(root);
+  update(root);
+  setTimeout(fitToScreen, 700);
+
+  document.getElementById("btnExpand").onclick = () => {
+    expand(root); update(root); fitToScreen();
+  };
+  document.getElementById("btnCollapse").onclick = () => {
+    collapse(root); update(root); fitToScreen();
+  };
+  document.getElementById("btnFit").onclick = fitToScreen;
+  document.getElementById("btnExportSVG").onclick = exportSVG;
+  document.getElementById("btnExportPNG").onclick = exportPNG;
+
+  document.getElementById("searchBox")
+    .addEventListener("input", handleSearch);
+});
+
+/* Collapse/Expand Logic */
+function collapse(d){
+  if (d.children){
+    d._children = d.children;
+    d._children.forEach(collapse);
+    d.children = null;
+  }
+}
+function expand(d){
+  if (d._children){
+    d.children = d._children;
+    d._children = null;
+  }
+  if (d.children) d.children.forEach(expand);
+}
+
+/* --------------------- UPDATE TREE --------------------- */
+function update(source){
+  treeLayout(root);
+  const nodes = root.descendants();
+  const links = root.links();
+
+  nodes.forEach(d => d.y = d.depth * 220);
+
+  const nodeSel = g.selectAll("g.node")
+    .data(nodes, d => d.data.id);
+
+  const nodeEnter = nodeSel.enter()
+    .append("g")
+    .attr("class","node")
+    .attr("transform",
+      `translate(${source.y0},${source.x0})`)
+    .style("cursor","pointer")
+
+    /* TOOLTIP */
+    .on("mouseenter", (event,d)=>{
+      tooltip.style("display","block")
+             .html(`<b>${d.data.label}</b> (Level ${d.data.level})`);
+    })
+    .on("mousemove",(event)=>{
+      tooltip.style("left",(event.pageX+12)+"px")
+             .style("top",(event.pageY+12)+"px");
+    })
+    .on("mouseleave",()=>tooltip.style("display","none"))
+
+    /* RECT CLICK = EXPAND/COLLAPSE (Option D) */
+    .on("click", (event, d) => {
+      event.stopPropagation();
+
+      if (d.children){
+        d._children = d.children;
+        d.children = null;
+      } else {
+        d.children = d._children;
+        d._children = null;
+      }
+
+      update(d);
+      centerOn(d);
+    });
+
+  /* LABEL WITH SUFFIX NUMBER */
+  nodeEnter.append("text")
+    .attr("text-anchor","middle")
+    .attr("class","label")
+    .text(d => `${d.data.label} (${d.data.level})`);
+
+  /* RECTANGLE + TEXT POSITION */
+  nodeEnter.each(function(d){
+    const group = d3.select(this);
+
+    const textNode = group.select("text").node();
+    const bbox = textNode.getBBox();
+
+    const padX = 14, padY = 7;
+    const w = bbox.width + padX*2;
+    const h = bbox.height + padY*2;
+
+    group.insert("rect","text")
+      .attr("x", -w/2)
+      .attr("y", -h/2)
+      .attr("width", w)
+      .attr("height", h)
+      .style("fill", levelColor(d.data.level));
+
+    group.select("text")
+      .attr("y", bbox.height/4);
+
+    /* TEXT CLICK = OPEN LINK (Option D) */
+    if (d.data.link){
+      group.classed("linked", true);
+      group.select("text")
+        .on("click", (event) => {
+          event.stopPropagation();
+          window.open(d.data.link, "_blank");
+        });
+    }
+  });
+
+  const nodeMerge = nodeEnter.merge(nodeSel);
+
+  /* Smooth Position Animation */
+  nodeMerge.transition()
+    .duration(500)
+    .ease(d3.easeCubicInOut)
+    .attr("transform",
+      d => `translate(${d.y},${d.x})`);
+
+  /* End Dots */
+  nodeMerge.each(function(d){
+    const g = d3.select(this);
+    g.select("circle.end-dot").remove();
+    if(!d.children && !d._children){
+      const rect = g.select("rect").node().getBBox();
+      g.append("circle")
+        .attr("class","end-dot")
+        .attr("r",5)
+        .attr("cx", rect.x + rect.width/2 + 12)
+        .attr("cy", 0);
+    }
+  });
+
+  nodeSel.exit()
+    .transition().duration(300)
+    .style("opacity",0)
+    .remove();
+  /* ---------------- LINKS ---------------- */
+  const linkSel = g.selectAll("path.link")
+    .data(links, d => d.target.data.id);
+
+  linkSel.enter()
+    .insert("path","g")
+    .attr("class","link")
+    .attr("d",
+      () => diagonal(source, source))
+    .merge(linkSel)
+    .transition()
+    .duration(500)
+    .ease(d3.easeCubicInOut)
+    .attr("d",
+      d => diagonal(d.source, d.target));
+
+  linkSel.exit().remove();
+
+  /* Save old positions */
+  nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
+
+  drawMinimap(nodes, links);
+}
+
+/* Curved Link */
+function diagonal(s,d){
+  return `M${s.y},${s.x}
+          C${(s.y+d.y)/2},${s.x}
+           ${(s.y+d.y)/2},${d.x}
+           ${d.y},${d.x}`;
+}
+
+/* Center Selected Node */
+function centerOn(d){
+  const w = width(), h = height();
+  const k = d3.zoomTransform(svg.node()).k;
+  const tx = w/2 - d.y*k;
+  const ty = h/2 - d.x*k;
+  svg.transition().duration(400)
+    .ease(d3.easeCubicInOut)
+    .call(zoom.transform,
+      d3.zoomIdentity.translate(tx,ty).scale(k));
+}
+
+/* Fit-to-Screen */
+function fitToScreen(){
+  const box = g.node().getBBox();
+  const w = width(), h = height();
+  const margin = 60;
+  const scale =
+    Math.min((w-margin)/box.width, (h-margin)/box.height);
+  const s = Math.max(0.3, Math.min(scale,1.6));
+
+  const tx = (w - box.width*s)/2 - box.x*s;
+  const ty = (h - box.height*s)/2 - box.y*s;
+
+  svg.transition().duration(600)
+    .ease(d3.easeCubicInOut)
+    .call(zoom.transform,
+      d3.zoomIdentity.translate(tx,ty).scale(s));
+}
+
+/* ---------------- MINIMAP ---------------- */
+function drawMinimap(nodes, links){
+  let box;
+  try { box = g.node().getBBox(); }
+  catch { return; }
+
+  const mw = miniSvg.node().clientWidth;
+  const mh = miniSvg.node().clientHeight;
+
+  const scale = Math.min(
+    mw / box.width,
+    mh / box.height
+  ) * 0.8;
+
+  const tx = (mw - box.width*scale)/2 - box.x*scale;
+  const ty = (mh - box.height*scale)/2 - box.y*scale;
+
+  const transform = d => [
+    d.y * scale + tx,
+    d.x * scale + ty
+  ];
+
+  const mLinks = miniLinks.selectAll("path").data(links);
+  mLinks.enter().append("path").merge(mLinks)
+    .attr("d", d=>{
+      const s = transform(d.source);
+      const t = transform(d.target);
+      return `M${s[0]},${s[1]} L${t[0]},${t[1]}`;
+    })
+    .attr("stroke","#b0bec5")
+    .attr("stroke-width",1);
+  mLinks.exit().remove();
+
+  const mNodes = miniNodes.selectAll("circle").data(nodes);
+  mNodes.enter().append("circle").merge(mNodes)
+    .attr("r",2.2)
+    .attr("cx", d => transform(d)[0])
+    .attr("cy", d => transform(d)[1])
+    .attr("fill","#37474f");
+  mNodes.exit().remove();
+}
+
+/* ---------------- SEARCH ---------------- */
+function handleSearch(){
+  const q = this.value.trim().toLowerCase();
+  const nodes = g.selectAll("g.node");
+  nodes.classed("highlight",false);
+  if(!q) return;
+
+  const matches = nodes
+    .filter(d => d.data.label.toLowerCase().includes(q));
+
+  matches.classed("highlight",true);
+
+  const first = matches.datum();
+  if (first) centerOn(first);
+}
+
+/* ---------------- EXPORT ---------------- */
+function exportSVG(){
+  const box = g.node().getBBox();
+
+  const svgClone = svg.node().cloneNode(true);
+  const inner = svgClone.querySelector("g");
+
+  const outer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  outer.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  outer.setAttribute("width", box.width + 100);
+  outer.setAttribute("height", box.height + 100);
+  outer.setAttribute("viewBox", `${box.x - 50} ${box.y - 50} ${box.width + 100} ${box.height + 100}`);
+
+  outer.appendChild(inner);
+
+  const data = new XMLSerializer().serializeToString(outer);
+  const blob = new Blob([data], { type: "image/svg+xml" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "oaos_tree.svg";
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
+
+function exportPNG(){
+  const box = g.node().getBBox();
+
+  const tmp = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  const inner = svg.node().querySelector("g").cloneNode(true);
+
+  tmp.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  tmp.setAttribute("width", box.width + 100);
+  tmp.setAttribute("height", box.height + 100);
+  tmp.setAttribute("viewBox", `${box.x - 50} ${box.y - 50} ${box.width + 100} ${box.height + 100}`);
+
+  tmp.appendChild(inner);
+
+  const data = new XMLSerializer().serializeToString(tmp);
+  const svgBlob = new Blob([data], { type: "image/svg+xml" });
+  const url = URL.createObjectURL(svgBlob);
+
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "white";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img,0,0);
+
+    canvas.toBlob(blob => {
+      const url2 = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url2;
+      a.download = "oaos_tree.png";
+      a.click();
+      URL.revokeObjectURL(url2);
+    });
+  };
+  img.src = url;
+}
+
+</script>
+</body>
+</html>
+
+  
