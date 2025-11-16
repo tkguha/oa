@@ -1,7 +1,7 @@
 node_id,parent_id,level,topic,tags,widgets,links
 0,,0,AGENDA,,,
 1,0,1,Open Access and Open Science,,,
-2,1,2,LAYER 3: Governance & Standardization,,,
+2,1,2,LAYER 3: Governance & Standardization,,,https://www.iitg.ac.in
 3,2,3,6. Open Mind,,,
 4,3,4,Historical Background,,,
 5,4,5,Rooted in scientific ethos,,,
