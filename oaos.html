@@ -163,6 +163,23 @@
     stroke:#ffeb3b!important;
     stroke-width:4px!important;
   }
+  /* start of QR style sheet */
+#qrBox {
+    display: block;
+    margin-top: 6px;
+    text-align: left;
+}
+
+#qrBox img {
+    width: 80px;        /* adjust size as needed */
+    height: auto;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+}
+  /* end of QR style sheet */
+
+
+  
 </style>
 </head>
 
@@ -174,6 +191,11 @@
     <button id="btnFit">Fit</button>
     <!-- <button id="btnExportSVG">SVG</button>
     <button id="btnExportPNG">PNG</button> -->
+        <!-- QR CODE BLOCK ADDED -->
+    <div id="qrBox">
+      <img src="https://raw.githubusercontent.com/tkguha/oa/main/qr.png" alt="QR Code">
+    </div>
+  </div>
   </div>
   Open Access & Open Science — Interactive Tree
 </header>
