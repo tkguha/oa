@@ -51,8 +51,8 @@
 49,48,2,Open Collaboration,,,
 50,48,2,Open Mind,,,
 51,48,2,Open Review,,,
-52,50,3,Historical Background,,,
-53,50,3,Current Focus,,,
+52,49,3,Historical Background,,,
+53,49,3,Current Focus,,,
 54,52,4,Crowdsourced models (Wikipedia),,,
 55,52,4,Inspired by peer-production theory,,,
 56,52,4,Enabled by internet connectivity and distributed version control,,,
@@ -114,6 +114,7 @@
 112,104,3,"Multi-stakeholder governance (academia, industry)",,,
 113,104,3,"Balancing security, privacy, intellectual property & misuse prevention",,,
 114,104,3,"Concern of data quality, licensing clarity, interoperability & collaborative norms",,,
+
 
 
 
