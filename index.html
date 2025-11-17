@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard</title>
+
   <style>
     body {
       margin: 0;
@@ -78,8 +79,25 @@
     ul li a:hover {
       text-decoration: underline;
     }
+
+    /* QR Code area */
+    .qr-container {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+      margin-bottom: 40px;
+    }
+
+    .qr-container img {
+      width: 3cm;
+      height: 3cm;
+      border: 3px solid #000;
+      border-radius: 10px;
+    }
   </style>
 </head>
+
 <body>
 
 <header>Tamal Kumar Guha (Ph.D.)</header>
@@ -91,23 +109,21 @@
     <ul>
       <li><a href="https://guhas.in/oer.html" target="_blank"><b>KEDLE-2025 Presentation</b></a></li>
       <li><a href="https://raw.githubusercontent.com/tkguha/oa/main/nehuworkshop.html" target="_blank"><b>NEHU-DLISc Workshop</b></a> (presented on 22nd Nov. 2025)</li>
-<!--      <li><a href="#">Presentation 3</a></li>
-      <li><a href="#">Presentation 4</a></li> -->
     </ul>
   </div>
 
   <div class="box red-box">
     <h2>Personal</h2>
     <ul>
-	
-	   <li><a href="https://tkguha.github.io/familytree/" target="_blank"><b>Guha Family Lineage Tree</b></a></li>
-	   <!--  
-      <li><a href="#">Blog</a></li>
-      <li><a href="#">Documents</a></li>
-      <li><a href="#">Gallery</a></li> -->
+      <li><a href="https://tkguha.github.io/familytree/" target="_blank"><b>Guha Family Lineage Tree</b></a></li>
     </ul>
   </div>
 
+</div>
+
+<!-- QR Code Section -->
+<div class="qr-container">
+  <img src="https://raw.githubusercontent.com/tkguha/oa/main/qr.png" alt="QR Code">
 </div>
 
 </body>
