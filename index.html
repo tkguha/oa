@@ -138,10 +138,13 @@
 </footer>
 
 <script>
-  fetch("https://api.countapi.xyz/hit/tkguha.github.io/indexpage")
-    .then(response => response.json())
-    .then(data => {
-      document.getElementById("visits").innerText = data.value;
+  fetch("https://api.countapi.xyz/hit/guhas.in/visitorcount")
+    .then(res => res.json())
+    .then(res => {
+      document.getElementById("visits").textContent = res.value;
+    })
+    .catch(() => {
+      document.getElementById("visits").textContent = "N/A";
     });
 </script>
 
