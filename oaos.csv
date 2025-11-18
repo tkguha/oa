@@ -1,6 +1,6 @@
 node_id,parent_id,level,topic,tags,widgets,links
 0,,0,LAYER 0: Open Access and Open Science,,,
-1,0,1,LAYER 1: Core Infrastructures of Openness,FOUNDATION LAYERS,,https://chatgpt.com/
+1,0,1,LAYER 1: Core Infrastructures of Openness,FOUNDATION LAYERS,,
 2,1,2,Open Access (OA),,,
 3,1,2,Open Source Software (OSS),,,
 4,1,2,Open Data,,,
@@ -47,7 +47,7 @@ node_id,parent_id,level,topic,tags,widgets,links
 45,39,4,Licensing clarity enabling global collaborative models,,,
 46,39,4,Copyleft (protection) vs permissive (flexibility) licensing,,,
 47,39,4,Legal backbone for data sharing & AI training,,,
-48,0,1,LAYER 2: Collaborative & Cultural Enablers,LAYER 2 — Collaborative & Cultural Enablers,,https://www.google.com/
+48,0,1,LAYER 2: Collaborative & Cultural Enablers,LAYER 2 — Collaborative & Cultural Enablers,,
 49,48,2,Open Collaboration,,,
 50,48,2,Open Mind,,,
 51,48,2,Open Review,,,
@@ -79,7 +79,7 @@ node_id,parent_id,level,topic,tags,widgets,links
 77,71,4,Integration with preprint platforms,,,
 78,71,4,"Debates on reviewer workload, anonymity, and career incentives",,,
 79,71,4,Move toward community-driven evaluation models,,,
-80,0,1,LAYER 3: Governance & Standardization,LAYER 3 — Governance & Standardization,,https://app.grammarly.com/
+80,0,1,LAYER 3: Governance & Standardization,LAYER 3 — Governance & Standardization,,
 81,80,2,Open Policy,,,
 82,80,2,Open Standards,,,
 83,81,3,Historical Background,,,
@@ -101,7 +101,7 @@ node_id,parent_id,level,topic,tags,widgets,links
 99,94,4,"Increasing push for open APIs, schema standards",,,
 100,94,4,"Critical for data portability, competition",,,
 101,94,4,Promotion of open standards as public digital infrastructure,,,
-102,0,1,LAYER 4: Open AI,TOP LAYER — Integrated Technological Innovation,,https://www.amazon.in/
+102,0,1,LAYER 4: Open AI,TOP LAYER — Integrated Technological Innovation,,
 103,102,2,Historical Background,,,
 104,102,2,Current Focus,,,
 105,103,3,Influenced by open-source ethos,,,
@@ -114,6 +114,7 @@ node_id,parent_id,level,topic,tags,widgets,links
 112,104,3,"Multi-stakeholder governance (academia, industry)",,,
 113,104,3,"Balancing security, privacy, intellectual property & misuse prevention",,,
 114,104,3,"Concern of data quality, licensing clarity, interoperability & collaborative norms",,,
+
 
 
 
