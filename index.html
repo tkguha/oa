@@ -134,19 +134,14 @@
   margin-top:40px;
   letter-spacing:0.5px;
 ">
-  Visitor Count: <span id="visits" style="font-weight:bold;"></span>
+  Visitor Count:
+  <img 
+    src="https://hits.sh/guhas.in.svg?style=flat-square&color=ffffff&labelColor=1a73e8&label=Visitors" 
+    alt="visitor count"
+    style="vertical-align:middle; height:18px;"
+  >
 </footer>
 
-<script>
-  fetch("https://api.countapi.xyz/hit/guhas.in/visitorcount")
-    .then(res => res.json())
-    .then(res => {
-      document.getElementById("visits").textContent = res.value;
-    })
-    .catch(() => {
-      document.getElementById("visits").textContent = "N/A";
-    });
-</script>
 
 </body>
 </html>
