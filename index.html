@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard</title>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background-color: #f4f6f8;
+    }
+
+    header {
+      text-align: center;
+      padding: 25px 0;
+      background-color: #1a73e8;
+      color: white;
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .container {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 40px;
+      padding: 60px 20px;
+      flex-wrap: wrap;
+    }
+
+    .box {
+      width: 360px;
+      min-height: 350px;
+      border-radius: 25px;
+      padding: 25px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .blue-box {
+      background: #d9ecff;
+      border: 2px solid #2196f3;
+    }
+
+    .red-box {
+      background: #ffe0e0;
+      border: 2px solid #ff6b6b;
+    }
+
+    .box h2 {
+      margin-top: 0;
+      text-align: center;
+      font-size: 24px;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin-top: 20px;
+      font-size: 17px;
+    }
+
+    ul li {
+      margin-bottom: 12px;
+    }
+
+    ul li a {
+      text-decoration: none;
+      color: #003366;
+      font-weight: 600;
+    }
+
+    ul li a:hover {
+      text-decoration: underline;
+    }
+
+    /* QR Code area */
+    .qr-container {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+      margin-bottom: 40px;
+    }
+
+    .qr-container img {
+      width: 3cm;
+      height: 3cm;
+      border: 3px solid #000;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>Tamal Kumar Guha (Ph.D.)</header>
+
+<div class="container">
+
+  <div class="box blue-box">
+    <h2>Presentations</h2>
+    <ul>
+      <li><a href="https://guhas.in/oer.html" target="_blank"><b>KEDLE-2025 Presentation</b></a></li>
+      <li><a href="https://raw.githubusercontent.com/tkguha/oa/main/nehuworkshop.html" target="_blank"><b>NEHU-DLISc Workshop</b></a> (presented on 22nd Nov. 2025)</li>
+    </ul>
+  </div>
+
+  <div class="box red-box">
+    <h2>Personal</h2>
+    <ul>
+      <li><a href="https://tkguha.github.io/familytree/" target="_blank"><b>Guha Family Lineage Tree</b></a></li>
+    </ul>
+  </div>
+
+</div>
+
+<!-- QR Code Section -->
+<div class="qr-container">
+  <img src="https://raw.githubusercontent.com/tkguha/oa/main/qr.png" alt="QR Code">
+</div>
+<footer style="
+  background:#1a73e8;
+  color:white;
+  text-align:center;
+  padding:12px 0;
+  font-size:14px;
+  margin-top:40px;
+  letter-spacing:0.5px;
+">
+  Visitor Count: <span id="visits" style="font-weight:bold;"></span>
+</footer>
+
+<script>
+  fetch("https://api.countapi.xyz/hit/tkguha.github.io/indexpage")
+    .then(response => response.json())
+    .then(data => {
+      document.getElementById("visits").innerText = data.value;
+    });
+</script>
+
+</body>
+</html>
