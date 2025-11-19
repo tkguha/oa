@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -26,10 +27,6 @@
     margin:0;
     font-family:var(--font);
     background:var(--bg);
-    /* make page fill viewport and push footer to bottom */
-    min-height:100vh;
-    display:flex;
-    flex-direction:column;
   }
 
   header{
@@ -41,16 +38,7 @@
     font-weight:600;
     position:relative;
     box-shadow:0 2px 4px rgba(0,0,0,0.2);
-    flex-shrink:0;
   }
-
-  /* cc license new*/
-  header .cc-license{
-    position:absolute;
-    right:12px;
-    top:50%;
-    transform:translateY(-50%);
-  } /* end of cc license new */
 
   header .controls{
     position:absolute;
@@ -71,11 +59,10 @@
     font-size:12px;
   }
 
-  /* MAIN CANVAS AREA */
   #canvas{
+    height:calc(100vh - 60px);
     position:relative;
-    overflow:auto;
-    flex:1;              /* take remaining height between header and footer */
+    overflow:hidden;
   }
 
   #searchBox{
@@ -93,22 +80,22 @@
     box-shadow:0 1px 4px rgba(0,0,0,0.15);
   }
 
-  #credits{
+#credits{
     position:absolute;
     right:16px;
     top:12px;
     background:white;
     max-width:260px;
-    padding:14px 14px;
+    padding:14px 14px;        /* increased padding */
     border-radius:8px;
-    font-size:13px;
+    font-size:13px;           /* slightly larger font (optional) */
     line-height:1.55;
     box-shadow:0 2px 8px rgba(0,0,0,0.15);
     z-index:20;
-    max-height:none;
-    overflow:visible;
-    white-space:normal;
-  }
+    max-height:none;          /* ensure no height clipping */
+    overflow:visible;         /* allow full expansion */
+    white-space:normal;       /* allow multiline */
+}
 
   svg.main{
     width:100%;
@@ -176,17 +163,6 @@
     stroke:#ffeb3b!important;
     stroke-width:4px!important;
   }
-
-  /* footer styling (non-sticky, but always at bottom of viewport because of flex layout) */
-  footer{
-    background:#1a73e8;
-    color:white;
-    text-align:center;
-    padding:12px 0;
-    font-size:14px;
-    letter-spacing:0.5px;
-    flex-shrink:0;
-  }
 </style>
 </head>
 
@@ -196,27 +172,20 @@
     <button id="btnExpand">Expand</button>
     <button id="btnCollapse">Collapse</button>
     <button id="btnFit">Fit</button>
-    <!--
-    <button id="btnExportSVG">SVG</button>
-    <button id="btnExportPNG">PNG</button>
-    -->
+    <!-- <button id="btnExportSVG">SVG</button>
+    <button id="btnExportPNG">PNG</button> -->
   </div>
   Open Access & Open Science — Interactive Tree
-  <div class="cc-license">
-    <img src="https://licensebuttons.net/l/by-nc-sa/4.0/88x31.png"
-         alt="CC BY-NC-SA"
-         style="height:26px;">
-  </div>
 </header>
 
 <div id="canvas">
   <input id="searchBox" placeholder="Search node..." />
   <div id="credits">
-    <b>Dr. Tamal Kumar Guha<br>Librarian, IIT Guwahati<br>
+    <b>Dr. Tamal Kumar Guha<br>Librarian,IIT Guwahati<br>
     Presented at NEHU DLISc<br>On: Nov 22, 2025</b><br>
     <b>Video Sources</b>:<br>
-    <li><a href="https://www.youtube.com/watch?v=uK2eFv7ne_Q" target="_blank"><b>Quantum Mechanics Lecture of Prof. Ramamurti Shankar</b></a></li>
-    <li><a href="https://www.youtube.com/watch?v=bKkrdn_GrQo" target="_blank"><b>Open Access</b></a></li>
+     <li><a href="https://www.youtube.com/watch?v=uK2eFv7ne_Q" target="_blank"><b>Quantum Mechanics Lecture of Prof.Ramamurti Shankar</b></a></li>
+     <li><a href="https://www.youtube.com/watch?v=bKkrdn_GrQo" target="_blank"><b>Open Access</b></a></li>
   </div>
 
   <div id="tooltip"></div>
@@ -288,17 +257,15 @@ d3.csv(CSV_URL).then(raw => {
   update(root);
   setTimeout(fitToScreen, 700);
 
-  const btnExpand   = document.getElementById("btnExpand");
-  const btnCollapse = document.getElementById("btnCollapse");
-  const btnFit      = document.getElementById("btnFit");
-  const btnExportSVG = document.getElementById("btnExportSVG");
-  const btnExportPNG = document.getElementById("btnExportPNG");
-
-  if (btnExpand)   btnExpand.onclick   = () => { expand(root); update(root); fitToScreen(); };
-  if (btnCollapse) btnCollapse.onclick = () => { collapse(root); update(root); fitToScreen(); };
-  if (btnFit)      btnFit.onclick      = fitToScreen;
-  if (btnExportSVG) btnExportSVG.onclick = exportSVG;
-  if (btnExportPNG) btnExportPNG.onclick = exportPNG;
+  document.getElementById("btnExpand").onclick = () => {
+    expand(root); update(root); fitToScreen();
+  };
+  document.getElementById("btnCollapse").onclick = () => {
+    collapse(root); update(root); fitToScreen();
+  };
+  document.getElementById("btnFit").onclick = fitToScreen;
+  document.getElementById("btnExportSVG").onclick = exportSVG;
+  document.getElementById("btnExportPNG").onclick = exportPNG;
 
   document.getElementById("searchBox")
     .addEventListener("input", handleSearch);
@@ -349,7 +316,7 @@ function update(source){
     })
     .on("mouseleave",()=>tooltip.style("display","none"))
 
-    /* RECT CLICK = EXPAND/COLLAPSE */
+    /* RECT CLICK = EXPAND/COLLAPSE (Option D) */
     .on("click", (event, d) => {
       event.stopPropagation();
 
@@ -392,7 +359,7 @@ function update(source){
     group.select("text")
       .attr("y", bbox.height/4);
 
-    /* TEXT CLICK = OPEN LINK */
+    /* TEXT CLICK = OPEN LINK (Option D) */
     if (d.data.link){
       group.classed("linked", true);
       group.select("text")
@@ -414,11 +381,11 @@ function update(source){
 
   /* End Dots */
   nodeMerge.each(function(d){
-    const gNode = d3.select(this);
-    gNode.select("circle.end-dot").remove();
+    const g = d3.select(this);
+    g.select("circle.end-dot").remove();
     if(!d.children && !d._children){
-      const rect = gNode.select("rect").node().getBBox();
-      gNode.append("circle")
+      const rect = g.select("rect").node().getBBox();
+      g.append("circle")
         .attr("class","end-dot")
         .attr("r",4)
         .attr("cx", rect.x + rect.width + 10)
@@ -430,7 +397,6 @@ function update(source){
     .transition().duration(300)
     .style("opacity",0)
     .remove();
-
   /* ---------------- LINKS ---------------- */
   const linkSel = g.selectAll("path.link")
     .data(links, d => d.target.data.id);
@@ -482,8 +448,7 @@ function fitToScreen(){
   const margin = 60;
   const scale =
     Math.min((w-margin)/box.width, (h-margin)/box.height);
-  /* allow a bit more zoom so tree uses more of the screen */
-  const s = Math.max(0.3, Math.min(scale, 2.4));
+  const s = Math.max(0.3, Math.min(scale,1.6));
 
   const tx = (w - box.width*s)/2 - box.x*s;
   const ty = (h - box.height*s)/2 - box.y*s;
@@ -551,8 +516,7 @@ function handleSearch(){
   const first = matches.datum();
   if (first) centerOn(first);
 }
-
-/* ---------------- helper ---------------- */ 
+ /* ---------------- helper ---------------- */ 
 function inlineStyles(svg) {
   const styleSheets = [...document.styleSheets];
 
@@ -575,6 +539,9 @@ function inlineStyles(svg) {
   svg.insertBefore(styleElem, svg.firstChild);
 }
 
+
+
+  
 /* ---------------- EXPORT ---------------- */
 function exportSVG() {
   const svgNode = svg.node().cloneNode(true);
@@ -649,23 +616,10 @@ function exportPNG() {
 
   img.src = url;
 }
+
+
 </script>
-
-<!-- FOOTER with counter -->
-<footer>
-  <p style="margin: 6px 0;">
-    &copy; 2025 Tamal Kumar Guha.  
-    <img 
-      src="https://licensebuttons.net/l/by-nc-sa/4.0/88x31.png" 
-      alt="CC BY-NC-SA" 
-      style="height:28px; vertical-align:middle; margin-left:8px;">
-  </p>
-  <img 
-    src="https://hits.sh/guhas.in-home.svg?style=flat-square&color=ffffff&labelColor=1a73e8&label=Visitors" 
-    alt="visitor count"
-    style="vertical-align:middle; height:18px;"
-  >
-</footer>
-
 </body>
 </html>
+
+  
