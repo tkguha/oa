@@ -14,6 +14,7 @@
     --link-stroke:#8aa2c1;
     --font:"Segoe UI",Roboto,Arial,sans-serif;
 
+    /* gradient level colors */
     --level0:#bcd4ff;
     --level1:#dfe7f5;
     --level2:#e8f0ff;
@@ -25,9 +26,10 @@
     margin:0;
     font-family:var(--font);
     background:var(--bg);
+    /* make page fill viewport and push footer to bottom */
+    min-height:100vh;
     display:flex;
     flex-direction:column;
-    min-height:100vh;
   }
 
   header{
@@ -42,12 +44,13 @@
     flex-shrink:0;
   }
 
+  /* cc license new*/
   header .cc-license{
     position:absolute;
     right:12px;
     top:50%;
     transform:translateY(-50%);
-  }
+  } /* end of cc license new */
 
   header .controls{
     position:absolute;
@@ -68,14 +71,11 @@
     font-size:12px;
   }
 
-  /* FIXED CANVAS HEIGHT */
+  /* MAIN CANVAS AREA */
   #canvas{
-    flex:1 1 auto;
     position:relative;
     overflow:auto;
-    min-height:350px;
-    padding-top:10px;
-    padding-bottom:10px;  /* prevents minimap cutting */
+    flex:1;              /* take remaining height between header and footer */
   }
 
   #searchBox{
@@ -93,8 +93,7 @@
     box-shadow:0 1px 4px rgba(0,0,0,0.15);
   }
 
-  /* FLOATING CREDITS — OPTION A */
-#credits{
+  #credits{
     position:absolute;
     right:16px;
     top:12px;
@@ -106,9 +105,10 @@
     line-height:1.55;
     box-shadow:0 2px 8px rgba(0,0,0,0.15);
     z-index:20;
+    max-height:none;
     overflow:visible;
     white-space:normal;
-}
+  }
 
   svg.main{
     width:100%;
@@ -150,6 +150,7 @@
 
   .node text{
     font-size:14px;
+    pointer-events:auto;
   }
 
   .node.linked text{
@@ -176,7 +177,7 @@
     stroke-width:4px!important;
   }
 
-  /* FOOTER */
+  /* footer styling (non-sticky, but always at bottom of viewport because of flex layout) */
   footer{
     background:#1a73e8;
     color:white;
@@ -190,12 +191,15 @@
 </head>
 
 <body>
-
 <header>
   <div class="controls">
     <button id="btnExpand">Expand</button>
     <button id="btnCollapse">Collapse</button>
     <button id="btnFit">Fit</button>
+    <!--
+    <button id="btnExportSVG">SVG</button>
+    <button id="btnExportPNG">PNG</button>
+    -->
   </div>
   Open Access & Open Science — Interactive Tree
   <div class="cc-license">
@@ -207,15 +211,12 @@
 
 <div id="canvas">
   <input id="searchBox" placeholder="Search node..." />
-
   <div id="credits">
-    <b>Dr. Tamal Kumar Guha<br>
-       Librarian, IIT Guwahati<br>
-       Presented at NEHU DLISc<br>
-       On: Nov 22, 2025</b><br><br>
+    <b>Dr. Tamal Kumar Guha<br>Librarian, IIT Guwahati<br>
+    Presented at NEHU DLISc<br>On: Nov 22, 2025</b><br>
     <b>Video Sources</b>:<br>
-     <li><a href="https://www.youtube.com/watch?v=uK2eFv7ne_Q" target="_blank"><b>Quantum Mechanics Lecture – Prof. Shankar</b></a></li>
-     <li><a href="https://www.youtube.com/watch?v=bKkrdn_GrQo" target="_blank"><b>Open Access</b></a></li>
+    <li><a href="https://www.youtube.com/watch?v=uK2eFv7ne_Q" target="_blank"><b>Quantum Mechanics Lecture of Prof. Ramamurti Shankar</b></a></li>
+    <li><a href="https://www.youtube.com/watch?v=bKkrdn_GrQo" target="_blank"><b>Open Access</b></a></li>
   </div>
 
   <div id="tooltip"></div>
@@ -228,7 +229,8 @@
 </div>
 
 <script>
-const CSV_URL = "https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv";
+const CSV_URL =
+ "https://raw.githubusercontent.com/tkguha/oa/main/oaos.csv";
 
 const svg = d3.select("svg.main");
 const g = d3.select("#tree");
@@ -260,7 +262,7 @@ function levelColor(level){
   return "var(--level4)";
 }
 
-/* LOAD CSV */
+/* --------------------- CSV LOAD --------------------- */
 d3.csv(CSV_URL).then(raw => {
   const rows = raw.map(r => ({
     id: (r.node_id || "").trim(),
@@ -276,8 +278,7 @@ d3.csv(CSV_URL).then(raw => {
   let rootData = null;
   map.forEach(n => {
     if (!n.parentId) rootData = n;
-    else if (map.has(n.parentId))
-      map.get(n.parentId).children.push(n);
+    else if (map.has(n.parentId)) map.get(n.parentId).children.push(n);
   });
 
   root = d3.hierarchy(rootData, d => d.children.length ? d.children : null);
@@ -287,18 +288,23 @@ d3.csv(CSV_URL).then(raw => {
   update(root);
   setTimeout(fitToScreen, 700);
 
-  document.getElementById("btnExpand").onclick = () => {
-    expand(root); update(root); fitToScreen();
-  };
-  document.getElementById("btnCollapse").onclick = () => {
-    collapse(root); update(root); fitToScreen();
-  };
-  document.getElementById("btnFit").onclick = fitToScreen;
+  const btnExpand   = document.getElementById("btnExpand");
+  const btnCollapse = document.getElementById("btnCollapse");
+  const btnFit      = document.getElementById("btnFit");
+  const btnExportSVG = document.getElementById("btnExportSVG");
+  const btnExportPNG = document.getElementById("btnExportPNG");
 
-  document.getElementById("searchBox").addEventListener("input", handleSearch);
+  if (btnExpand)   btnExpand.onclick   = () => { expand(root); update(root); fitToScreen(); };
+  if (btnCollapse) btnCollapse.onclick = () => { collapse(root); update(root); fitToScreen(); };
+  if (btnFit)      btnFit.onclick      = fitToScreen;
+  if (btnExportSVG) btnExportSVG.onclick = exportSVG;
+  if (btnExportPNG) btnExportPNG.onclick = exportPNG;
+
+  document.getElementById("searchBox")
+    .addEventListener("input", handleSearch);
 });
 
-/* COLLAPSE / EXPAND */
+/* Collapse/Expand Logic */
 function collapse(d){
   if (d.children){
     d._children = d.children;
@@ -314,7 +320,7 @@ function expand(d){
   if (d.children) d.children.forEach(expand);
 }
 
-/* UPDATE TREE */
+/* --------------------- UPDATE TREE --------------------- */
 function update(source){
   treeLayout(root);
   const nodes = root.descendants();
@@ -331,6 +337,8 @@ function update(source){
     .attr("transform",
       `translate(${source.y0},${source.x0})`)
     .style("cursor","pointer")
+
+    /* TOOLTIP */
     .on("mouseenter", (event,d)=>{
       tooltip.style("display","block")
              .html(`<b>${d.data.label}</b> (Level ${d.data.level})`);
@@ -340,8 +348,11 @@ function update(source){
              .style("top",(event.pageY+12)+"px");
     })
     .on("mouseleave",()=>tooltip.style("display","none"))
+
+    /* RECT CLICK = EXPAND/COLLAPSE */
     .on("click", (event, d) => {
       event.stopPropagation();
+
       if (d.children){
         d._children = d.children;
         d.children = null;
@@ -349,17 +360,21 @@ function update(source){
         d.children = d._children;
         d._children = null;
       }
+
       update(d);
       centerOn(d);
     });
 
+  /* LABEL WITH SUFFIX NUMBER */
   nodeEnter.append("text")
     .attr("text-anchor","middle")
     .attr("class","label")
     .text(d => `${d.data.label} (${d.data.level})`);
 
+  /* RECTANGLE + TEXT POSITION */
   nodeEnter.each(function(d){
     const group = d3.select(this);
+
     const textNode = group.select("text").node();
     const bbox = textNode.getBBox();
 
@@ -377,6 +392,7 @@ function update(source){
     group.select("text")
       .attr("y", bbox.height/4);
 
+    /* TEXT CLICK = OPEN LINK */
     if (d.data.link){
       group.classed("linked", true);
       group.select("text")
@@ -389,18 +405,20 @@ function update(source){
 
   const nodeMerge = nodeEnter.merge(nodeSel);
 
+  /* Smooth Position Animation */
   nodeMerge.transition()
     .duration(500)
     .ease(d3.easeCubicInOut)
     .attr("transform",
       d => `translate(${d.y},${d.x})`);
 
+  /* End Dots */
   nodeMerge.each(function(d){
-    const g = d3.select(this);
-    g.select("circle.end-dot").remove();
+    const gNode = d3.select(this);
+    gNode.select("circle.end-dot").remove();
     if(!d.children && !d._children){
-      const rect = g.select("rect").node().getBBox();
-      g.append("circle")
+      const rect = gNode.select("rect").node().getBBox();
+      gNode.append("circle")
         .attr("class","end-dot")
         .attr("r",4)
         .attr("cx", rect.x + rect.width + 10)
@@ -408,29 +426,36 @@ function update(source){
     }
   });
 
-  nodeSel.exit().transition().duration(300).style("opacity",0).remove();
+  nodeSel.exit()
+    .transition().duration(300)
+    .style("opacity",0)
+    .remove();
 
+  /* ---------------- LINKS ---------------- */
   const linkSel = g.selectAll("path.link")
     .data(links, d => d.target.data.id);
 
   linkSel.enter()
     .insert("path","g")
     .attr("class","link")
-    .attr("d",()=> diagonal(source, source))
+    .attr("d",
+      () => diagonal(source, source))
     .merge(linkSel)
     .transition()
     .duration(500)
     .ease(d3.easeCubicInOut)
-    .attr("d", d => diagonal(d.source, d.target));
+    .attr("d",
+      d => diagonal(d.source, d.target));
 
   linkSel.exit().remove();
 
+  /* Save old positions */
   nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
 
   drawMinimap(nodes, links);
 }
 
-/* CURVED LINK */
+/* Curved Link */
 function diagonal(s,d){
   return `M${s.y},${s.x}
           C${(s.y+d.y)/2},${s.x}
@@ -438,7 +463,7 @@ function diagonal(s,d){
            ${d.y},${d.x}`;
 }
 
-/* CENTER */
+/* Center Selected Node */
 function centerOn(d){
   const w = width(), h = height();
   const k = d3.zoomTransform(svg.node()).k;
@@ -450,14 +475,15 @@ function centerOn(d){
       d3.zoomIdentity.translate(tx,ty).scale(k));
 }
 
-/* FIT-SCREEN */
+/* Fit-to-Screen */
 function fitToScreen(){
   const box = g.node().getBBox();
   const w = width(), h = height();
   const margin = 60;
   const scale =
     Math.min((w-margin)/box.width, (h-margin)/box.height);
-  const s = Math.max(0.3, Math.min(scale,1.6));
+  /* allow a bit more zoom so tree uses more of the screen */
+  const s = Math.max(0.3, Math.min(scale, 2.4));
 
   const tx = (w - box.width*s)/2 - box.x*s;
   const ty = (h - box.height*s)/2 - box.y*s;
@@ -468,7 +494,7 @@ function fitToScreen(){
       d3.zoomIdentity.translate(tx,ty).scale(s));
 }
 
-/* MINIMAP */
+/* ---------------- MINIMAP ---------------- */
 function drawMinimap(nodes, links){
   let box;
   try { box = g.node().getBBox(); }
@@ -510,7 +536,7 @@ function drawMinimap(nodes, links){
   mNodes.exit().remove();
 }
 
-/* SEARCH */
+/* ---------------- SEARCH ---------------- */
 function handleSearch(){
   const q = this.value.trim().toLowerCase();
   const nodes = g.selectAll("g.node");
@@ -525,14 +551,114 @@ function handleSearch(){
   const first = matches.datum();
   if (first) centerOn(first);
 }
+
+/* ---------------- helper ---------------- */ 
+function inlineStyles(svg) {
+  const styleSheets = [...document.styleSheets];
+
+  let cssText = "";
+  styleSheets.forEach(sheet => {
+    try {
+      const rules = sheet.cssRules;
+      if (rules) {
+        for (let r of rules) {
+          cssText += r.cssText;
+        }
+      }
+    } catch (e) {
+      // Ignore CORS-restricted stylesheets
+    }
+  });
+
+  const styleElem = document.createElementNS("http://www.w3.org/2000/svg", "style");
+  styleElem.textContent = cssText;
+  svg.insertBefore(styleElem, svg.firstChild);
+}
+
+/* ---------------- EXPORT ---------------- */
+function exportSVG() {
+  const svgNode = svg.node().cloneNode(true);
+
+  inlineStyles(svgNode);
+
+  // Compute full bounding box of the actual tree
+  const box = g.node().getBBox();
+  const margin = 50;
+
+  svgNode.setAttribute("viewBox",
+    `${box.x - margin} ${box.y - margin} ${box.width + margin*2} ${box.height + margin*2}`
+  );
+  svgNode.setAttribute("width", box.width + margin*2);
+  svgNode.setAttribute("height", box.height + margin*2);
+
+  const serializer = new XMLSerializer();
+  const source = serializer.serializeToString(svgNode);
+
+  const blob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "oaos_tree.svg";
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
+
+function exportPNG() {
+  const svgNode = svg.node().cloneNode(true);
+
+  inlineStyles(svgNode);
+
+  const box = g.node().getBBox();
+  const margin = 50;
+
+  svgNode.setAttribute("viewBox",
+    `${box.x - margin} ${box.y - margin} ${box.width + margin*2} ${box.height + margin*2}`
+  );
+  svgNode.setAttribute("width", box.width + margin*2);
+  svgNode.setAttribute("height", box.height + margin*2);
+
+  const serializer = new XMLSerializer();
+  const source = serializer.serializeToString(svgNode);
+  const svgBlob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(svgBlob);
+
+  const img = new Image();
+  img.onload = function () {
+    const canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "white";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img,0,0);
+
+    canvas.toBlob(blob => {
+      const url2 = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url2;
+      a.download = "oaos_tree.png";
+      a.click();
+
+      URL.revokeObjectURL(url2);
+    });
+  };
+
+  img.src = url;
+}
 </script>
 
+<!-- FOOTER with counter -->
 <footer>
   <p style="margin: 6px 0;">
-    &copy; 2025 Tamal Kumar Guha  
-    <img src="https://licensebuttons.net/l/by-nc-sa/4.0/88x31.png"
-         alt="CC BY-NC-SA"
-         style="height:28px; vertical-align:middle; margin-left:8px;">
+    &copy; 2025 Tamal Kumar Guha.  
+    <img 
+      src="https://licensebuttons.net/l/by-nc-sa/4.0/88x31.png" 
+      alt="CC BY-NC-SA" 
+      style="height:28px; vertical-align:middle; margin-left:8px;">
   </p>
   <img 
     src="https://hits.sh/guhas.in-home.svg?style=flat-square&color=ffffff&labelColor=1a73e8&label=Visitors" 
