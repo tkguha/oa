@@ -1,13 +1,13 @@
 node_id,parent_id,level,topic,tags,widgets,links
-0,,0,LAYER 0: Open Access and Open Science,,,
+0,,0,LAYER 0: Open Access and Open Science,,,https://link.springer.com/book/10.1007/978-3-319-00026-8
 1,0,1,LAYER 1: Core Infrastructures of Openness,FOUNDATION LAYERS,,
-2,1,2,Open Access (OA),,,
+2,1,2,Open Access (OA),,,https://doi.org/10.7551/mitpress/9286.001.0001
 3,1,2,Open Source Software (OSS),,,
 4,1,2,Open Data,,,
 5,1,2,Open Licensing,,,
 6,2,3,Historical Background,,,
 7,2,3,Current Focus,,,
-8,6,4,"Emerged early 2000s (Budapest, Bethesda, Berlin)",,,
+8,6,4,"Emerged early 2000s (Budapest, Bethesda, Berlin)",,,https://www.budapestopenaccessinitiative.org/read/
 9,6,4,Reaction to rising journal subscription costs,,,
 10,6,4,Driven by academic activism,,,
 11,7,4,"Shift to transformative agreements (""Read & Publish"" model).",,,
@@ -114,6 +114,7 @@ node_id,parent_id,level,topic,tags,widgets,links
 112,104,3,"Multi-stakeholder governance (academia, industry)",,,
 113,104,3,"Balancing security, privacy, intellectual property & misuse prevention",,,
 114,104,3,"Concern of data quality, licensing clarity, interoperability & collaborative norms",,,
+
 
 
 
