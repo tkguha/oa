@@ -8,7 +8,7 @@ node_id,parent_id,level,topic,tags,widgets,links
 6,2,3,Historical Background,,,
 7,2,3,Current Focus,,,
 8,6,4,"Emerged early 2000s (Budapest, Bethesda, Berlin)",,,https://www.budapestopenaccessinitiative.org/read/
-9,6,4,Reaction to rising journal subscription costs,,,
+9,6,4,Reaction to rising journal subscription costs,,,https://doi.org/10.31274/jlsc.15673
 10,6,4,Driven by academic activism,,,
 11,7,4,"Shift to transformative agreements (""Read & Publish"" model).",,,
 12,7,4,"Increasing funder mandates (e.g., Plan S)",,,
@@ -114,6 +114,7 @@ node_id,parent_id,level,topic,tags,widgets,links
 112,104,3,"Multi-stakeholder governance (academia, industry)",,,
 113,104,3,"Balancing security, privacy, intellectual property & misuse prevention",,,
 114,104,3,"Concern of data quality, licensing clarity, interoperability & collaborative norms",,,
+
 
 
 
