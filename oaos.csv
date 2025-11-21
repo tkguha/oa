@@ -10,12 +10,12 @@ node_id,parent_id,level,topic,tags,widgets,links
 8,6,4,"Emerged early 2000s (Budapest, Bethesda, Berlin)",,,https://www.budapestopenaccessinitiative.org/read/
 9,6,4,Reaction to rising journal subscription costs,,,https://doi.org/10.31274/jlsc.15673
 10,6,4,Driven by academic activism,,,https://ceu.libguides.com/open-access/activism
-11,7,4,"Shift to transformative agreements (""Read & Publish"" model).",,,
-12,7,4,"Increasing funder mandates (e.g., Plan S)",,,
+11,7,4,"Shift to transformative agreements (""Read & Publish"" model).",,,https://esac-initiative.org/about/transformative-agreements/
+12,7,4,"Increasing funder mandates (e.g., Plan S)",,,https://www.coalition-s.org/why-plan-s/
 13,7,4,Emphasis on equity for Global South,,,
 14,7,4,"Growth of preprint ecosystems (arXiv, bioRxiv).",,,
 15,7,4,Rising interest in open monographs and textbooks.,,,
-16,7,4,APC-driven inequity,,,
+16,7,4,APC-driven inequity,,,https://doi.org/10.1162/qss_a_00245
 17,7,4,Push for diamond OA (free for authors/readers),,,
 18,3,3,Historical Background,,,
 19,3,3,Current Focus,,,
@@ -114,6 +114,7 @@ node_id,parent_id,level,topic,tags,widgets,links
 112,104,3,"Multi-stakeholder governance (academia, industry)",,,
 113,104,3,"Balancing security, privacy, intellectual property & misuse prevention",,,
 114,104,3,"Concern of data quality, licensing clarity, interoperability & collaborative norms",,,
+
 
 
 
