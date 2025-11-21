@@ -25,7 +25,7 @@ node_id,parent_id,level,topic,tags,widgets,links
 23,18,4,"New development model: ""bazaar"" vs ""cathedral""",,,
 24,19,4,"Foundation of modern infrastructure (cloud, AI)",,,
 25,19,4,"Corporate-community collaboration (RedHat, Google, Microsoft)",,,
-26,19,4,Strategic role in national digital sovereignty (NDLI; Zoho Office Suite),,,
+26,19,4,Strategic role in national digital sovereignty (NDLI; OGD Platform),,,https://www.data.gov.in/
 27,19,4,Transparency and reproducibility in AI and scientific computing,,,
 28,4,3,Historical Background,,,
 29,4,3,Current Focus,,,
@@ -114,6 +114,7 @@ node_id,parent_id,level,topic,tags,widgets,links
 112,104,3,"Multi-stakeholder governance (academia, industry)",,,
 113,104,3,"Balancing security, privacy, intellectual property & misuse prevention",,,
 114,104,3,"Concern of data quality, licensing clarity, interoperability & collaborative norms",,,
+
 
 
 
