@@ -12,14 +12,14 @@ node_id,parent_id,level,topic,tags,widgets,links
 10,6,4,Driven by academic activism,,,https://ceu.libguides.com/open-access/activism
 11,7,4,"Shift to transformative agreements (""Read & Publish"" model).",,,https://esac-initiative.org/about/transformative-agreements/
 12,7,4,"Increasing funder mandates (e.g., Plan S)",,,https://www.coalition-s.org/why-plan-s/
-13,7,4,Emphasis on equity for Global South,,,
-14,7,4,"Growth of preprint ecosystems (arXiv, bioRxiv).",,,
+13,7,4,Emphasis on equity for Global South,,,https://www.unesco.org/en/open-science/about
+14,7,4,"Growth of preprint ecosystems (arXiv/bioRxiv/SocArXiv/PsyArXiv/engrXiV/AgriXiv)",,,
 15,7,4,Rising interest in open monographs and textbooks.,,,
 16,7,4,APC-driven inequity,,,https://doi.org/10.1162/qss_a_00245
-17,7,4,Push for diamond OA (free for authors/readers),,,
+17,7,4,Push for diamond OA (free for authors/readers),,,https://www.unesco.org/en/diamond-open-access
 18,3,3,Historical Background,,,
 19,3,3,Current Focus,,,
-20,18,4,1980s Free Software Movement (GNU),,,
+20,18,4,1980s Free Software Movement (GNU),,,https://www.gnu.org/home.en.html
 21,18,4,"Term ""Open Source"" popularized late 1990s",,,
 22,18,4,"Major projects: Linux, Apache, Mozilla",,,
 23,18,4,"New development model: ""bazaar"" vs ""cathedral""",,,
@@ -114,6 +114,7 @@ node_id,parent_id,level,topic,tags,widgets,links
 112,104,3,"Multi-stakeholder governance (academia, industry)",,,
 113,104,3,"Balancing security, privacy, intellectual property & misuse prevention",,,
 114,104,3,"Concern of data quality, licensing clarity, interoperability & collaborative norms",,,
+
 
 
 
