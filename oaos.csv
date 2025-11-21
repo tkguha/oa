@@ -32,15 +32,15 @@ node_id,parent_id,level,topic,tags,widgets,links
 30,28,4,Scientific reproducibility norms & open government,,,
 31,28,4,"UK, US, EU launched major open data portals (2009-2013)",,,
 32,28,4,"Initial focus: transparency, anti-corruption",,,
-33,29,4,"Emphasis on FAIR (Findable, Accessible, Interoperable, Reusable) principles",,,
+33,29,4,"Emphasis on FAIR (Findable, Accessible, Interoperable, Reusable) principles",,,https://doi.org/10.1038/sdata.2016.18
 34,29,4,"Expansion into health, geospatial, climate and research datasets",,,
 35,29,4,"Ethical considerations: privacy, data governance",,,
 36,29,4,"Strong role in policy analytics, AI training, civic technologies.",,,
 37,29,4,Increased demand for high-quality machine-readable datasets.,,,
 38,5,3,Historical Background,,,
 39,5,3,Current Focus,,,
-40,38,4,"GNU GPL (1989) introduced ""copyleft""",,,
-41,38,4,Creative Commons (2001) standardized licensing,,,
+40,38,4,"GNU GPL (1989) introduced ""copyleft""",,,https://www.gnu.org/philosophy/fsfs/rms-essays.pdf
+41,38,4,Creative Commons (2001) standardized licensing,,,https://creativecommons.org/chooser/
 42,38,4,Legal ambiguity around reuse,,,
 43,39,4,"Broad adoption across academia, government",,,
 44,39,4,"Fine-grained permission mechanisms (CC-BY, MIT, GPL)",,,
@@ -114,6 +114,7 @@ node_id,parent_id,level,topic,tags,widgets,links
 112,104,3,"Multi-stakeholder governance (academia, industry)",,,
 113,104,3,"Balancing security, privacy, intellectual property & misuse prevention",,,
 114,104,3,"Concern of data quality, licensing clarity, interoperability & collaborative norms",,,
+
 
 
 
